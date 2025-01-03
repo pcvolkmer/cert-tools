@@ -38,7 +38,7 @@ fn main() -> Result<(), ()> {
             if let Ok(mut chain) = chain {
                 if let Some(ca) = ca {
                     if let Ok(ca_chain) = Chain::read(Path::new(&ca)) {
-                        for ca_cert in ca_chain.to_vec() {
+                        for ca_cert in ca_chain.into_vec() {
                             chain.push(ca_cert);
                         }
                     } else {
@@ -99,7 +99,7 @@ fn main() -> Result<(), ()> {
             if let Ok(mut chain) = chain {
                 if let Some(ca) = ca {
                     if let Ok(ca_chain) = Chain::read(Path::new(&ca)) {
-                        for ca_cert in ca_chain.to_vec() {
+                        for ca_cert in ca_chain.into_vec() {
                             chain.push(ca_cert);
                         }
                     } else {
@@ -114,12 +114,12 @@ fn main() -> Result<(), ()> {
                             .yellow()
                     );
                 }
-                let mut certs = chain.to_vec();
+                let mut certs = chain.into_vec();
                 certs.sort_by(|cert1, cert2| {
                     if cert1.subject_key_id() == cert2.authority_key_id() {
-                        return Ordering::Greater;
+                        Ordering::Greater
                     } else {
-                        return Ordering::Less;
+                        Ordering::Less
                     }
                 });
                 let chain = Chain::from(certs.into_iter().unique().collect::<Vec<_>>());

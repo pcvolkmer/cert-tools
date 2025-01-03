@@ -314,7 +314,7 @@ impl Chain {
         &self.certs
     }
 
-    pub fn to_vec(self) -> Vec<Certificate> {
+    pub fn into_vec(self) -> Vec<Certificate> {
         self.certs
     }
 
