@@ -140,7 +140,7 @@ impl Certificate {
         Ok(result)
     }
 
-    pub fn to_plain(&self) -> Result<String, ()> {
+    pub fn to_pem(&self) -> Result<String, ()> {
         match self.cert.to_pem() {
             Ok(pem) => String::from_utf8(pem).map_err(|_| ()),
             Err(_) => Err(()),

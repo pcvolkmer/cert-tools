@@ -131,7 +131,7 @@ fn main() -> Result<(), ()> {
                     return Err(());
                 }
                 for cert in chain.certs() {
-                    match cert.to_plain() {
+                    match cert.to_pem() {
                         Ok(plain) => print!("{}", plain),
                         Err(_) => {
                             eprintln!(
