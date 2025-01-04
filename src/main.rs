@@ -20,12 +20,13 @@
 mod cli;
 
 use crate::cli::{Cli, SubCommand};
+use cert_tools::{Certificate, Chain, PrivateKey};
 use clap::Parser;
 use console::style;
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::path::Path;
-use cert_tools::{print_cert, Chain, PrivateKey};
+use std::time::SystemTime;
 
 fn main() -> Result<(), ()> {
     let cli = Cli::parse();
@@ -149,4 +150,40 @@ fn main() -> Result<(), ()> {
         }
     }
     Ok(())
+}
+
+pub fn print_cert(cert: &Certificate) {
+    println!(
+        "{}
+Issuer:              {}
+Gültigkeit:          Gültig von: {} bis: {}
+SHA-1-Fingerprint:   {}
+SHA-256-Fingerprint: {}
+Subject-Key-Id:      {}
+Authority-Key-Id:    {}",
+        style(format!("Name:                {}", cert.name()))
+            .bold()
+            .underlined(),
+        cert.issuer(),
+        if cert.is_valid_not_before(&SystemTime::now()) {
+            style(cert.not_before().to_string())
+        } else {
+            style(cert.not_before().to_string()).red()
+        },
+        if cert.is_valid_not_after(&SystemTime::now()) {
+            style(cert.not_after().to_string())
+        } else {
+            style(cert.not_after().to_string()).red()
+        },
+        cert.fingerprint().sha1,
+        cert.fingerprint().sha256,
+        cert.subject_key_id(),
+        cert.authority_key_id(),
+    );
+    if !cert.dns_names().is_empty() {
+        println!(
+            "DNS Names:           {}",
+            style(cert.dns_names().join(", "))
+        );
+    }
 }

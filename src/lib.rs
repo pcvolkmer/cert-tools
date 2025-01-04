@@ -17,7 +17,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use console::style;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
@@ -28,42 +27,6 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-pub fn print_cert(cert: &Certificate) {
-    println!(
-        "{}
-Issuer:              {}
-Gültigkeit:          Gültig von: {} bis: {}
-SHA-1-Fingerprint:   {}
-SHA-256-Fingerprint: {}
-Subject-Key-Id:      {}
-Authority-Key-Id:    {}",
-        style(format!("Name:                {}", cert.name()))
-            .bold()
-            .underlined(),
-        cert.issuer(),
-        if cert.is_valid_not_before(&SystemTime::now()) {
-            style(cert.not_before().to_string())
-        } else {
-            style(cert.not_before().to_string()).red()
-        },
-        if cert.is_valid_not_after(&SystemTime::now()) {
-            style(cert.not_after().to_string())
-        } else {
-            style(cert.not_after().to_string()).red()
-        },
-        cert.fingerprint().sha1,
-        cert.fingerprint().sha256,
-        cert.subject_key_id(),
-        cert.authority_key_id(),
-    );
-    if !cert.dns_names().is_empty() {
-        println!(
-            "DNS Names:           {}",
-            style(cert.dns_names().join(", "))
-        );
-    }
-}
 
 pub fn hex_encode<T: AsRef<[u8]>>(s: T) -> String {
     s.as_ref()
