@@ -17,16 +17,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-mod chain;
 mod cli;
 
-use crate::chain::{print_cert, Chain, PrivateKey};
 use crate::cli::{Cli, SubCommand};
 use clap::Parser;
 use console::style;
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::path::Path;
+use cert_tools::{print_cert, Chain, PrivateKey};
 
 fn main() -> Result<(), ()> {
     let cli = Cli::parse();
