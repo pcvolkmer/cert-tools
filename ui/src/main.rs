@@ -4,9 +4,11 @@ use cert_tools::{Chain, PrivateKey};
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
-    Scrollable,
+    Container, Scrollable,
 };
-use iced::{application, clipboard, Background, Color, Element, Font, Length, Size, Task};
+use iced::{
+    application, clipboard, Background, Border, Color, Element, Font, Length, Shadow, Size, Task,
+};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
@@ -19,11 +21,18 @@ fn main() -> iced::Result {
         .run_with(Ui::new)
 }
 
+enum UiMode {
+    CertList,
+    Output
+}
+
 struct Ui {
     cert_file: Option<PathBuf>,
     ca_file: Option<PathBuf>,
     key_file: Option<PathBuf>,
 
+    mode: UiMode,
+    chain: Option<Chain>,
     output: Content,
     status: String,
 }
@@ -35,6 +44,8 @@ impl Ui {
                 cert_file: None,
                 ca_file: None,
                 key_file: None,
+                mode: UiMode::Output,
+                chain: None,
                 output: Content::default(),
                 status: String::new(),
             },
@@ -47,17 +58,20 @@ impl Ui {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        self.mode = UiMode::Output;
         match message {
             Message::PickCertFile => Task::perform(pick_file(), Message::SetCertFile),
             Message::PickCaFile => Task::perform(pick_file(), Message::SetCaFile),
             Message::PickKeyFile => Task::perform(pick_file(), Message::SetKeyFile),
             Message::ClearCertFile => {
                 self.cert_file = None;
+                self.chain = None;
                 self.output = Content::default();
                 Task::none()
             }
             Message::ClearCaFile => {
                 self.ca_file = None;
+                self.chain = None;
                 self.output = Content::default();
                 Task::none()
             }
@@ -70,8 +84,13 @@ impl Ui {
                 match file {
                     Ok(file) => {
                         self.cert_file = Some(file);
+                        self.chain = match self.load_chain() {
+                            Ok(chain) => Some(chain),
+                            _ => None
+                        };
                         self.output = Content::default();
-                    },
+                        self.mode = UiMode::CertList;
+                    }
                     _ => self.cert_file = None,
                 };
                 Task::none()
@@ -80,8 +99,13 @@ impl Ui {
                 match file {
                     Ok(file) => {
                         self.ca_file = Some(file);
+                        self.chain = match self.load_chain() {
+                            Ok(chain) => Some(chain),
+                            _ => None
+                        };
                         self.output = Content::default();
-                    },
+                        self.mode = UiMode::CertList;
+                    }
                     _ => self.ca_file = None,
                 };
                 Task::none()
@@ -91,7 +115,8 @@ impl Ui {
                     Ok(file) => {
                         self.key_file = Some(file);
                         self.output = Content::default();
-                    },
+                        self.mode = UiMode::CertList;
+                    }
                     _ => self.key_file = None,
                 };
                 Task::none()
@@ -101,6 +126,7 @@ impl Ui {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
                         self.status = String::new();
+                        self.mode = UiMode::CertList;
                     }
                     Err(err) => {
                         self.output = Content::default();
@@ -122,7 +148,7 @@ impl Ui {
                 };
                 Task::none()
             }
-            Message::Copy => clipboard::write::<Message>(self.output.text()),
+            Message::Copy => clipboard::write::<Message>(self.output.text())
         }
     }
 
@@ -252,9 +278,58 @@ impl Ui {
                         value: Color::WHITE,
                         ..default(theme, Status::Disabled)
                     })
-                    .font(Font::MONOSPACE)
+                    .font(Font::MONOSPACE),
             )
             .height(Length::Fill)
+        };
+
+        let certs = {
+            let mut result = column![];
+            
+            if let Some(chain) = &self.chain {
+                for cert in chain.certs() {
+                    result =
+                        result.push(
+                            Container::new(column![
+                        text(cert.name().to_string()).size(18),
+                        row![
+                            text("Name: ").width(200),
+                            text(cert.name().to_string())
+                        ],
+                        row![
+                            text("Issuer: ").width(200),
+                            text(cert.issuer().to_string())
+                        ],
+                        row![
+                            text("SHA-1-Fingerprint: ").width(200),
+                            text(cert.fingerprint().sha1.to_string())
+                        ],
+                        row![
+                            text("SHA-256-Fingerprint: ").width(200),
+                            text(cert.fingerprint().sha256.to_string())
+                        ],
+                        row![
+                            text("Subject-Key-Id: ").width(200),
+                            text(cert.subject_key_id().to_string())
+                        ],
+                        row![
+                            text("Authority_Key-Id: ").width(200),
+                            text(cert.authority_key_id().to_string())
+                        ],
+                    ])
+                                .padding(4)
+                                .style(|t| container::Style {
+                                    border: Border::default().width(1),
+                                    background: Some(Background::Color(Color::parse("#eee").unwrap())),
+                                    ..container::Style::default()
+                                })
+                                .width(Length::Fill),
+                        )
+                }
+            };
+            
+            let content = result.spacing(2);
+            Scrollable::new(content).height(Length::Fill)
         };
 
         let indicator = {
@@ -286,7 +361,10 @@ impl Ui {
             .spacing(96),
             horizontal_rule(1),
             buttons,
-            output,
+            match self.mode {
+                UiMode::CertList => certs,
+                UiMode::Output => output
+            },
             horizontal_rule(1),
             text(&self.status)
         ]
@@ -419,6 +497,28 @@ Authority-Key-Id:    {}
         }
         Ok(result)
     }
+    
+    fn load_chain(&self) -> Result<Chain, String> {
+        if let Some(cert_file) = &self.cert_file {
+            let chain = Chain::read(cert_file);
+
+            if let Ok(mut chain) = chain {
+                if let Some(ca_file) = &self.ca_file {
+                    if let Ok(ca_chain) = Chain::read(ca_file) {
+                        for ca_cert in ca_chain.into_vec() {
+                            chain.push(ca_cert);
+                        }
+                    } else {
+                        return Err("Cannot read CA file".to_string());
+                    }
+                }
+                return Ok(chain);
+            } else {
+                return Err("Cannot read Certificate file".to_string());
+            }
+        }
+        Ok(Chain::from(vec![]))
+    }
 
     fn indicator_state(&self) -> IndicatorState {
         let mut result = IndicatorState::Unknown;
@@ -482,7 +582,7 @@ enum Message {
     SetKeyFile(Result<PathBuf, Error>),
     Print,
     Merge,
-    Copy,
+    Copy
 }
 
 #[derive(Debug, Clone)]
