@@ -57,3 +57,7 @@ Options:
 ```shell
 cert-tools merge cert.pem ca.pem > chain.pem
 ```
+
+## GUI
+
+In addition to the console-based application, a simple graphical user interface is available in (sub-)package `ui`.
