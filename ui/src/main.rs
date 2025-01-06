@@ -415,7 +415,7 @@ impl Ui {
                         Ok(private_key) => {
                             if let Some(chain) = &self.chain {
                                 if let Some(first) = chain.certs().first() {
-                                    if first.public_key_matches(private_key) {
+                                    if first.public_key_matches(&private_key) {
                                         column![Container::new(text(
                                             "Private Key matches first Cert Public Key"
                                         ))
@@ -558,7 +558,7 @@ Authority-Key-Id:    {}
                     match PrivateKey::read(Path::new(&key)) {
                         Ok(private_key) => {
                             if let Some(cert) = chain.certs().first() {
-                                if cert.public_key_matches(private_key) {
+                                if cert.public_key_matches(&private_key) {
                                     output.push(
                                         "✓ Private Key matches first Cert Public Key".to_string(),
                                     );
@@ -679,7 +679,7 @@ Authority-Key-Id:    {}
                     match PrivateKey::read(Path::new(&key)) {
                         Ok(private_key) => {
                             if let Some(cert) = chain.certs().first() {
-                                return if cert.public_key_matches(private_key) && chain.is_valid() {
+                                return if cert.public_key_matches(&private_key) && chain.is_valid() {
                                     result
                                 } else {
                                     IndicatorState::Error

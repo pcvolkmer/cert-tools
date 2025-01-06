@@ -31,7 +31,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub fn hex_encode<T: AsRef<[u8]>>(s: T) -> String {
     s.as_ref()
         .iter()
-        .map(|b| format!("{:02x}", b))
+        .map(|b| format!("{b:02x}"))
         .collect::<Vec<_>>()
         .join(":")
         .to_ascii_uppercase()
@@ -242,7 +242,7 @@ impl Certificate {
         }
     }
 
-    pub fn public_key_matches(&self, private_key: PrivateKey) -> bool {
+    pub fn public_key_matches(&self, private_key: &PrivateKey) -> bool {
         if self.key_modulo().to_string() == private_key.modulus.to_string() {
             return true;
         }
@@ -306,7 +306,7 @@ impl Chain {
             }
             x = match cert.public_key() {
                 Ok(public_key) => Some(public_key),
-                Err(_) => None,
+                Err(()) => None,
             }
         }
         !time_issue && !self.certs.is_empty()
