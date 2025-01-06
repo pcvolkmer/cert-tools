@@ -5,6 +5,6 @@ edition = "2021"
 
 [dependencies]
 cert-tools = { path = "..", version = "*" }
-iced = { version = "0.13", features = ["wgpu", "tiny-skia", "tokio"], default-features = false }
+iced = { version = "0.13", features = ["wgpu", "tiny-skia", "tokio", "web-colors"], default-features = false }
 rfd = "0.15"
 itertools = "0.14"

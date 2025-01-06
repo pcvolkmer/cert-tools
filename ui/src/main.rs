@@ -6,7 +6,10 @@ use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     Container, Scrollable,
 };
-use iced::{application, clipboard, Background, Color, Element, Font, Length, Size, Task};
+use iced::{
+    alignment, application, clipboard, Background, Color, Element, Font, Length, Pixels, Settings,
+    Size, Task,
+};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -14,9 +17,12 @@ use std::time::SystemTime;
 
 fn main() -> iced::Result {
     application(Ui::title, Ui::update, Ui::view)
+        .settings(Settings {
+            default_text_size: Pixels::from(13),
+            ..Settings::default()
+        })
         .resizable(false)
-        .window_size(Size::new(1024.0, 800.0))
-        .scale_factor(|_| 0.8)
+        .window_size(Size::new(1000.0, 800.0))
         .run_with(Ui::new)
 }
 
@@ -218,6 +224,7 @@ impl Ui {
                     .style(button::secondary)
             ]
             .spacing(2)
+                .align_y(alignment::Vertical::Center)
         };
 
         let ca_file_input = {
@@ -250,6 +257,7 @@ impl Ui {
                 }
             ]
             .spacing(2)
+                .align_y(alignment::Vertical::Center)
         };
 
         let key_file_input = {
@@ -282,6 +290,7 @@ impl Ui {
                 }
             ]
             .spacing(2)
+                .align_y(alignment::Vertical::Center)
         };
 
         let clip_button = if self.output.text().trim().is_empty() {
@@ -367,7 +376,7 @@ impl Ui {
                                 text(cert.subject_key_id().to_string())
                             ],
                             row![
-                                text("Authority_Key-Id: ").width(200),
+                                text("Authority-Key-Id: ").width(200),
                                 text(cert.authority_key_id().to_string())
                             ],
                             if cert.dns_names().is_empty() {
@@ -389,13 +398,13 @@ impl Ui {
                 }
             };
 
-            let content =
-                Container::new(result.spacing(4))
-                    .padding(4)
-                    .style(|_| container::Style {
-                        background: Some(Background::Color(Color::parse("#eeeeee").unwrap())),
-                        ..container::Style::default()
-                    });
+            let content = Container::new(result.spacing(4))
+                .padding(4)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(Color::parse("#eeeeee").unwrap())),
+                    ..container::Style::default()
+                })
+                .width(Length::Fill);
             Scrollable::new(content).height(Length::Fill)
         };
 
@@ -505,11 +514,11 @@ impl Ui {
                         text_color: Some(Color::parse(content.2).unwrap()),
                         ..container::Style::default()
                     })
-                    .center_x(80)
-                    .center_y(80),
+                    .center_x(72)
+                    .center_y(72),
             )
-            .center_x(96)
-            .center_y(96)
+                .center_x(80)
+                .center_y(80)
         };
 
         column![
