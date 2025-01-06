@@ -6,12 +6,11 @@ use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     Container, Scrollable,
 };
-use iced::{
-    application, clipboard, Background, Border, Color, Element, Font, Length, Shadow, Size, Task,
-};
+use iced::{application, clipboard, Background, Color, Element, Font, Length, Size, Task};
 use itertools::Itertools;
 use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 fn main() -> iced::Result {
     application(Ui::title, Ui::update, Ui::view)
@@ -23,7 +22,7 @@ fn main() -> iced::Result {
 
 enum UiMode {
     CertList,
-    Output
+    Output,
 }
 
 struct Ui {
@@ -44,7 +43,7 @@ impl Ui {
                 cert_file: None,
                 ca_file: None,
                 key_file: None,
-                mode: UiMode::Output,
+                mode: UiMode::CertList,
                 chain: None,
                 output: Content::default(),
                 status: String::new(),
@@ -58,27 +57,34 @@ impl Ui {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
-        self.mode = UiMode::Output;
+        self.mode = UiMode::CertList;
         match message {
             Message::PickCertFile => Task::perform(pick_file(), Message::SetCertFile),
             Message::PickCaFile => Task::perform(pick_file(), Message::SetCaFile),
             Message::PickKeyFile => Task::perform(pick_file(), Message::SetKeyFile),
             Message::ClearCertFile => {
                 self.cert_file = None;
-                self.chain = None;
-                self.output = Content::default();
-                Task::none()
+                self.chain = match self.load_chain() {
+                    Ok(chain) => Some(chain),
+                    _ => None,
+                };
+                self.update(Message::Print)
             }
             Message::ClearCaFile => {
                 self.ca_file = None;
-                self.chain = None;
-                self.output = Content::default();
-                Task::none()
+                self.chain = match self.load_chain() {
+                    Ok(chain) => Some(chain),
+                    _ => None,
+                };
+                self.update(Message::Print)
             }
             Message::ClearKeyFile => {
                 self.key_file = None;
-                self.output = Content::default();
-                Task::none()
+                self.chain = match self.load_chain() {
+                    Ok(chain) => Some(chain),
+                    _ => None,
+                };
+                self.update(Message::Print)
             }
             Message::SetCertFile(file) => {
                 match file {
@@ -86,14 +92,14 @@ impl Ui {
                         self.cert_file = Some(file);
                         self.chain = match self.load_chain() {
                             Ok(chain) => Some(chain),
-                            _ => None
+                            _ => None,
                         };
                         self.output = Content::default();
                         self.mode = UiMode::CertList;
                     }
                     _ => self.cert_file = None,
                 };
-                Task::none()
+                self.update(Message::Print)
             }
             Message::SetCaFile(file) => {
                 match file {
@@ -101,25 +107,23 @@ impl Ui {
                         self.ca_file = Some(file);
                         self.chain = match self.load_chain() {
                             Ok(chain) => Some(chain),
-                            _ => None
+                            _ => None,
                         };
                         self.output = Content::default();
-                        self.mode = UiMode::CertList;
                     }
                     _ => self.ca_file = None,
                 };
-                Task::none()
+                self.update(Message::Print)
             }
             Message::SetKeyFile(file) => {
                 match file {
                     Ok(file) => {
                         self.key_file = Some(file);
                         self.output = Content::default();
-                        self.mode = UiMode::CertList;
                     }
                     _ => self.key_file = None,
                 };
-                Task::none()
+                self.update(Message::Print)
             }
             Message::Print => {
                 match self.print_output() {
@@ -140,6 +144,7 @@ impl Ui {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
                         self.status = String::new();
+                        self.mode = UiMode::Output;
                     }
                     Err(err) => {
                         self.output = Content::default();
@@ -148,7 +153,7 @@ impl Ui {
                 };
                 Task::none()
             }
-            Message::Copy => clipboard::write::<Message>(self.output.text())
+            Message::Copy => clipboard::write::<Message>(self.output.text()),
         }
     }
 
@@ -285,51 +290,172 @@ impl Ui {
 
         let certs = {
             let mut result = column![];
-            
+
             if let Some(chain) = &self.chain {
                 for cert in chain.certs() {
-                    result =
-                        result.push(
-                            Container::new(column![
-                        text(cert.name().to_string()).size(18),
-                        row![
-                            text("Name: ").width(200),
-                            text(cert.name().to_string())
-                        ],
-                        row![
-                            text("Issuer: ").width(200),
-                            text(cert.issuer().to_string())
-                        ],
-                        row![
-                            text("SHA-1-Fingerprint: ").width(200),
-                            text(cert.fingerprint().sha1.to_string())
-                        ],
-                        row![
-                            text("SHA-256-Fingerprint: ").width(200),
-                            text(cert.fingerprint().sha256.to_string())
-                        ],
-                        row![
-                            text("Subject-Key-Id: ").width(200),
-                            text(cert.subject_key_id().to_string())
-                        ],
-                        row![
-                            text("Authority_Key-Id: ").width(200),
-                            text(cert.authority_key_id().to_string())
-                        ],
-                    ])
-                                .padding(4)
-                                .style(|t| container::Style {
-                                    border: Border::default().width(1),
-                                    background: Some(Background::Color(Color::parse("#eee").unwrap())),
-                                    ..container::Style::default()
-                                })
-                                .width(Length::Fill),
-                        )
+                    result = result.push(
+                        Container::new(column![
+                            text(cert.name().to_string()).size(18),
+                            horizontal_rule(1),
+                            row![text("Issuer: ").width(200), text(cert.issuer().to_string())],
+                            row![
+                                text("Gültigkeit: ").width(200),
+                                text("Gültig von "),
+                                if cert.is_valid_not_before(&SystemTime::now()) {
+                                    text(cert.not_before().to_string())
+                                } else {
+                                    text(cert.not_before().to_string())
+                                        .color(Color::parse("#aa0000").unwrap())
+                                },
+                                text(" bis "),
+                                if cert.is_valid_not_after(&SystemTime::now()) {
+                                    text(cert.not_after().to_string())
+                                } else {
+                                    text(cert.not_after().to_string())
+                                        .color(Color::parse("#aa0000").unwrap())
+                                }
+                            ],
+                            row![
+                                text("SHA-1-Fingerprint: ").width(200),
+                                text(cert.fingerprint().sha1.to_string())
+                            ],
+                            row![
+                                text("SHA-256-Fingerprint: ").width(200),
+                                text(cert.fingerprint().sha256.to_string())
+                            ],
+                            row![
+                                text("Subject-Key-Id: ").width(200),
+                                text(cert.subject_key_id().to_string())
+                            ],
+                            row![
+                                text("Authority_Key-Id: ").width(200),
+                                text(cert.authority_key_id().to_string())
+                            ],
+                            if cert.dns_names().is_empty() {
+                                row![]
+                            } else {
+                                row![
+                                    text("DNS-Names: ").width(200),
+                                    text(cert.dns_names().join(", "))
+                                ]
+                            },
+                        ])
+                            .padding(8)
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(Color::WHITE)),
+                                ..container::Style::default()
+                            })
+                            .width(Length::Fill),
+                    )
                 }
             };
-            
-            let content = result.spacing(2);
+
+            let content =
+                Container::new(result.spacing(4))
+                    .padding(4)
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(Color::parse("#eeeeee").unwrap())),
+                        ..container::Style::default()
+                    });
             Scrollable::new(content).height(Length::Fill)
+        };
+
+        let chain_info = {
+            let mut result = column![];
+
+            result = result.push(if let Some(chain) = &self.chain {
+                if chain.has_missing_tail() {
+                    column![
+                            Container::new(text("Last Certificate points to another one that should be contained in chain.")).style(|_| container::Style {
+                            background: Some(Background::Color(Color::parse("#eeaa00").unwrap())),
+                            text_color: Some(Color::WHITE),
+                            ..container::Style::default()
+                        }).padding(2).width(Length::Fill),
+                            Container::new(text("Self signed (CA-) Certificate? It might be required to import a self signed Root-CA manually for applications to use it."))
+                            .padding(2)
+                        ]
+                } else {
+                    column![]
+                }
+            } else {
+                column![]
+            });
+
+            result = result.push(if let Some(chain) = &self.chain {
+                if chain.is_valid() {
+                    column![Container::new(text("Chain is valid"))
+                        .style(|_| container::Style {
+                            background: Some(Background::Color(Color::parse("#00aa00").unwrap())),
+                            text_color: Some(Color::WHITE),
+                            ..container::Style::default()
+                        })
+                        .padding(2)
+                        .width(Length::Fill)]
+                } else if !chain.certs().is_empty() {
+                    column![Container::new(text(
+                        "Chain or some of its parts is not valid (anymore)"
+                    ))
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(Color::parse("#aa0000").unwrap())),
+                        text_color: Some(Color::WHITE),
+                        ..container::Style::default()
+                    })
+                    .padding(2)
+                    .width(Length::Fill)]
+                } else {
+                    column![]
+                }
+            } else {
+                column![]
+            });
+
+            result =
+                result.push(if let Some(key) = &self.key_file {
+                    match PrivateKey::read(Path::new(&key)) {
+                        Ok(private_key) => {
+                            if let Some(chain) = &self.chain {
+                                if let Some(first) = chain.certs().first() {
+                                    if first.public_key_matches(private_key) {
+                                        column![Container::new(text(
+                                            "Private Key matches first Cert Public Key"
+                                        ))
+                                        .style(|_| container::Style {
+                                            background: Some(Background::Color(
+                                                Color::parse("#00aa00").unwrap()
+                                            )),
+                                            text_color: Some(Color::WHITE),
+                                            ..container::Style::default()
+                                        })
+                                        .padding(2)
+                                        .width(Length::Fill)]
+                                    } else {
+                                        column![Container::new(text(
+                                            "Private Key does not match the first Cert Public Key"
+                                        ))
+                                        .style(|_| container::Style {
+                                            background: Some(Background::Color(
+                                                Color::parse("#aa0000").unwrap()
+                                            )),
+                                            text_color: Some(Color::WHITE),
+                                            ..container::Style::default()
+                                        })
+                                        .padding(2)
+                                        .width(Length::Fill)]
+                                    }
+                                } else {
+                                    column![]
+                                }
+                            } else {
+                                column![]
+                            }
+                        }
+                        _ => column![],
+                    }
+                } else {
+                    column![]
+                });
+
+            result
         };
 
         let indicator = {
@@ -361,9 +487,10 @@ impl Ui {
             .spacing(96),
             horizontal_rule(1),
             buttons,
+            horizontal_rule(1),
             match self.mode {
-                UiMode::CertList => certs,
-                UiMode::Output => output
+                UiMode::CertList => column![certs, chain_info],
+                UiMode::Output => column![output],
             },
             horizontal_rule(1),
             text(&self.status)
@@ -497,7 +624,7 @@ Authority-Key-Id:    {}
         }
         Ok(result)
     }
-    
+
     fn load_chain(&self) -> Result<Chain, String> {
         if let Some(cert_file) = &self.cert_file {
             let chain = Chain::read(cert_file);
@@ -582,7 +709,7 @@ enum Message {
     SetKeyFile(Result<PathBuf, Error>),
     Print,
     Merge,
-    Copy
+    Copy,
 }
 
 #[derive(Debug, Clone)]
