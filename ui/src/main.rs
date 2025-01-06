@@ -9,7 +9,7 @@ use iced::widget::{
 use iced::{application, clipboard, Background, Color, Element, Font, Length, Size, Task};
 use itertools::Itertools;
 use std::cmp::Ordering;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::SystemTime;
 
 fn main() -> iced::Result {
@@ -20,15 +20,28 @@ fn main() -> iced::Result {
         .run_with(Ui::new)
 }
 
+enum File {
+    None,
+    Invalid(PathBuf),
+    Certificates(PathBuf, Box<Chain>),
+    PrivateKey(PathBuf, Box<PrivateKey>),
+}
+
+impl File {
+    fn is_some(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
 enum UiMode {
     CertList,
     Output,
 }
 
 struct Ui {
-    cert_file: Option<PathBuf>,
-    ca_file: Option<PathBuf>,
-    key_file: Option<PathBuf>,
+    cert_file: File,
+    ca_file: File,
+    key_file: File,
 
     mode: UiMode,
     chain: Option<Chain>,
@@ -40,9 +53,9 @@ impl Ui {
     fn new() -> (Self, Task<Message>) {
         (
             Self {
-                cert_file: None,
-                ca_file: None,
-                key_file: None,
+                cert_file: File::None,
+                ca_file: File::None,
+                key_file: File::None,
                 mode: UiMode::CertList,
                 chain: None,
                 output: Content::default(),
@@ -63,7 +76,7 @@ impl Ui {
             Message::PickCaFile => Task::perform(pick_file(), Message::SetCaFile),
             Message::PickKeyFile => Task::perform(pick_file(), Message::SetKeyFile),
             Message::ClearCertFile => {
-                self.cert_file = None;
+                self.cert_file = File::None;
                 self.chain = match self.load_chain() {
                     Ok(chain) => Some(chain),
                     _ => None,
@@ -71,7 +84,7 @@ impl Ui {
                 self.update(Message::Print)
             }
             Message::ClearCaFile => {
-                self.ca_file = None;
+                self.ca_file = File::None;
                 self.chain = match self.load_chain() {
                     Ok(chain) => Some(chain),
                     _ => None,
@@ -79,7 +92,7 @@ impl Ui {
                 self.update(Message::Print)
             }
             Message::ClearKeyFile => {
-                self.key_file = None;
+                self.key_file = File::None;
                 self.chain = match self.load_chain() {
                     Ok(chain) => Some(chain),
                     _ => None,
@@ -89,7 +102,10 @@ impl Ui {
             Message::SetCertFile(file) => {
                 match file {
                     Ok(file) => {
-                        self.cert_file = Some(file);
+                        self.cert_file = match Chain::read(&file) {
+                            Ok(chain) => File::Certificates(file, Box::new(chain)),
+                            Err(_) => File::Invalid(file),
+                        };
                         self.chain = match self.load_chain() {
                             Ok(chain) => Some(chain),
                             _ => None,
@@ -97,31 +113,37 @@ impl Ui {
                         self.output = Content::default();
                         self.mode = UiMode::CertList;
                     }
-                    _ => self.cert_file = None,
+                    _ => self.cert_file = File::None,
                 };
                 self.update(Message::Print)
             }
             Message::SetCaFile(file) => {
                 match file {
                     Ok(file) => {
-                        self.ca_file = Some(file);
+                        self.ca_file = match Chain::read(&file) {
+                            Ok(chain) => File::Certificates(file, Box::new(chain)),
+                            Err(_) => File::Invalid(file),
+                        };
                         self.chain = match self.load_chain() {
                             Ok(chain) => Some(chain),
                             _ => None,
                         };
                         self.output = Content::default();
                     }
-                    _ => self.ca_file = None,
+                    _ => self.ca_file = File::None,
                 };
                 self.update(Message::Print)
             }
             Message::SetKeyFile(file) => {
                 match file {
                     Ok(file) => {
-                        self.key_file = Some(file);
+                        self.key_file = match PrivateKey::read(&file) {
+                            Ok(key) => File::PrivateKey(file, Box::new(key)),
+                            Err(_) => File::Invalid(file),
+                        };
                         self.output = Content::default();
                     }
-                    _ => self.key_file = None,
+                    _ => self.key_file = File::None,
                 };
                 self.update(Message::Print)
             }
@@ -158,13 +180,15 @@ impl Ui {
     }
 
     fn view(&self) -> Element<Message> {
-        fn grey_out_style(is_active: bool) -> text::Style {
+        fn grey_style() -> text::Style {
             text::Style {
-                color: if is_active {
-                    Some(Color::BLACK)
-                } else {
-                    Some(Color::parse("#888888").unwrap())
-                },
+                color: Some(Color::parse("#888888").unwrap()),
+            }
+        }
+
+        fn red_style() -> text::Style {
+            text::Style {
+                color: Some(Color::parse("#aa0000").unwrap()),
             }
         }
 
@@ -172,10 +196,15 @@ impl Ui {
             row![
                 text("Certificate: ").width(100),
                 text(match self.cert_file {
-                    Some(ref file) => file.display().to_string(),
+                    File::Invalid(ref file) | File::Certificates(ref file, _) =>
+                        file.display().to_string(),
                     _ => "No certificate file".to_string(),
                 })
-                .style(|_| grey_out_style(self.cert_file.is_some())),
+                .style(|_| match self.cert_file {
+                    File::Certificates(_, _) => text::Style::default(),
+                    File::Invalid(_) => red_style(),
+                    _ => grey_style(),
+                }),
                 horizontal_space(),
                 if self.cert_file.is_some() {
                     button("x")
@@ -195,10 +224,15 @@ impl Ui {
             row![
                 text("CA: ").width(100),
                 text(match self.ca_file {
-                    Some(ref file) => file.display().to_string(),
+                    File::Invalid(ref file) | File::Certificates(ref file, _) =>
+                        file.display().to_string(),
                     _ => "No CA file".to_string(),
                 })
-                .style(|_| grey_out_style(self.ca_file.is_some())),
+                .style(|_| match self.ca_file {
+                    File::Certificates(_, _) => text::Style::default(),
+                    File::Invalid(_) => red_style(),
+                    _ => grey_style(),
+                }),
                 horizontal_space(),
                 if self.ca_file.is_some() {
                     button("x")
@@ -222,10 +256,15 @@ impl Ui {
             row![
                 text("Key: ").width(100),
                 text(match self.key_file {
-                    Some(ref file) => file.display().to_string(),
+                    File::Invalid(ref file) | File::PrivateKey(ref file, _) =>
+                        file.display().to_string(),
                     _ => "No key file".to_string(),
                 })
-                .style(|_| grey_out_style(self.key_file.is_some())),
+                .style(|_| match self.key_file {
+                    File::PrivateKey(_, _) => text::Style::default(),
+                    File::Invalid(_) => red_style(),
+                    _ => grey_style(),
+                }),
                 horizontal_space(),
                 if self.key_file.is_some() {
                     button("x")
@@ -409,51 +448,45 @@ impl Ui {
                 column![]
             });
 
-            result =
-                result.push(if let Some(key) = &self.key_file {
-                    match PrivateKey::read(Path::new(&key)) {
-                        Ok(private_key) => {
-                            if let Some(chain) = &self.chain {
-                                if let Some(first) = chain.certs().first() {
-                                    if first.public_key_matches(&private_key) {
-                                        column![Container::new(text(
-                                            "Private Key matches first Cert Public Key"
-                                        ))
-                                        .style(|_| container::Style {
-                                            background: Some(Background::Color(
-                                                Color::parse("#00aa00").unwrap()
-                                            )),
-                                            text_color: Some(Color::WHITE),
-                                            ..container::Style::default()
-                                        })
-                                        .padding(2)
-                                        .width(Length::Fill)]
-                                    } else {
-                                        column![Container::new(text(
-                                            "Private Key does not match the first Cert Public Key"
-                                        ))
-                                        .style(|_| container::Style {
-                                            background: Some(Background::Color(
-                                                Color::parse("#aa0000").unwrap()
-                                            )),
-                                            text_color: Some(Color::WHITE),
-                                            ..container::Style::default()
-                                        })
-                                        .padding(2)
-                                        .width(Length::Fill)]
-                                    }
-                                } else {
-                                    column![]
-                                }
-                            } else {
-                                column![]
-                            }
+            result = result.push(if let File::PrivateKey(_, private_key) = &self.key_file {
+                if let Some(chain) = &self.chain {
+                    if let Some(first) = chain.certs().first() {
+                        if first.public_key_matches(private_key) {
+                            column![Container::new(text(
+                                "Private Key matches first Cert Public Key"
+                            ))
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(
+                                    Color::parse("#00aa00").unwrap()
+                                )),
+                                text_color: Some(Color::WHITE),
+                                ..container::Style::default()
+                            })
+                            .padding(2)
+                            .width(Length::Fill)]
+                        } else {
+                            column![Container::new(text(
+                                "Private Key does not match the first Cert Public Key"
+                            ))
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(
+                                    Color::parse("#aa0000").unwrap()
+                                )),
+                                text_color: Some(Color::WHITE),
+                                ..container::Style::default()
+                            })
+                            .padding(2)
+                            .width(Length::Fill)]
                         }
-                        _ => column![],
+                    } else {
+                        column![]
                     }
                 } else {
                     column![]
-                });
+                }
+            } else {
+                column![]
+            });
 
             result
         };
@@ -502,23 +535,21 @@ impl Ui {
 
     fn print_output(&self) -> Result<String, String> {
         let mut output = vec![];
-        if let Some(cert_file) = &self.cert_file {
-            let chain = Chain::read(cert_file);
+        if let File::Certificates(_, chain) = &self.cert_file {
+            let mut certs = vec![];
+            for cert in chain.certs() {
+                certs.push(cert);
+            }
 
-            if let Ok(mut chain) = chain {
-                if let Some(ca_file) = &self.ca_file {
-                    if let Ok(ca_chain) = Chain::read(ca_file) {
-                        for ca_cert in ca_chain.into_vec() {
-                            chain.push(ca_cert);
-                        }
-                    } else {
-                        return Err("Cannot read CA file".to_string());
-                    }
+            if let File::Certificates(_, ca_chain) = &self.ca_file {
+                for ca_cert in ca_chain.certs() {
+                    certs.push(ca_cert);
                 }
+            }
 
-                for cert in chain.certs() {
-                    let s = format!(
-                        "Name:                {}
+            for cert in chain.certs() {
+                let s = format!(
+                    "Name:                {}
 Issuer:              {}
 Gültigkeit:          Gültig von: {} bis: {}
 SHA-1-Fingerprint:   {}
@@ -526,55 +557,47 @@ SHA-256-Fingerprint: {}
 Subject-Key-Id:      {}
 Authority-Key-Id:    {}
 {}",
-                        cert.name(),
-                        cert.issuer(),
-                        cert.not_before(),
-                        cert.not_after(),
-                        cert.fingerprint().sha1,
-                        cert.fingerprint().sha256,
-                        cert.subject_key_id(),
-                        cert.authority_key_id(),
-                        if cert.dns_names().is_empty() {
-                            "\n".to_string()
-                        } else {
-                            format!("DNS-Names:           {}\n", cert.dns_names().join(", "))
-                        }
-                    );
-                    output.push(s);
-                }
+                    cert.name(),
+                    cert.issuer(),
+                    cert.not_before(),
+                    cert.not_after(),
+                    cert.fingerprint().sha1,
+                    cert.fingerprint().sha256,
+                    cert.subject_key_id(),
+                    cert.authority_key_id(),
+                    if cert.dns_names().is_empty() {
+                        "\n".to_string()
+                    } else {
+                        format!("DNS-Names:           {}\n", cert.dns_names().join(", "))
+                    }
+                );
+                output.push(s);
+            }
 
-                if chain.has_missing_tail() {
-                    output.push("! Last Certificate points to another one that should be contained in chain.".to_string());
-                    output.push("  Self signed (CA-) Certificate? It might be required to import a self signed Root-CA manually for applications to use it.".to_string());
-                }
+            if chain.has_missing_tail() {
+                output.push(
+                    "! Last Certificate points to another one that should be contained in chain."
+                        .to_string(),
+                );
+                output.push("  Self signed (CA-) Certificate? It might be required to import a self signed Root-CA manually for applications to use it.".to_string());
+            }
 
-                if chain.is_valid() {
-                    output.push("✓ Chain is valid".to_string());
-                } else {
-                    output.push("! Chain or some of its parts is not valid (anymore)".to_string());
-                }
+            if chain.is_valid() {
+                output.push("✓ Chain is valid".to_string());
+            } else {
+                output.push("! Chain or some of its parts is not valid (anymore)".to_string());
+            }
 
-                if let Some(key) = &self.key_file {
-                    match PrivateKey::read(Path::new(&key)) {
-                        Ok(private_key) => {
-                            if let Some(cert) = chain.certs().first() {
-                                if cert.public_key_matches(&private_key) {
-                                    output.push(
-                                        "✓ Private Key matches first Cert Public Key".to_string(),
-                                    );
-                                } else {
-                                    output.push(
-                                        "! Private Key does not match the first Cert Public Key"
-                                            .to_string(),
-                                    );
-                                }
-                            }
-                        }
-                        _ => return Err("Could not read Private Key".to_string()),
+            if let File::PrivateKey(_, private_key) = &self.key_file {
+                if let Some(cert) = chain.certs().first() {
+                    if cert.public_key_matches(private_key) {
+                        output.push("✓ Private Key matches first Cert Public Key".to_string());
+                    } else {
+                        output.push(
+                            "! Private Key does not match the first Cert Public Key".to_string(),
+                        );
                     }
                 }
-            } else {
-                return Err("Cannot read Certificate file".to_string());
             }
         }
 
@@ -583,66 +606,54 @@ Authority-Key-Id:    {}
 
     fn merge_output(&self) -> Result<String, String> {
         let mut result = String::new();
-        if let Some(cert_file) = &self.cert_file {
-            let chain = Chain::read(cert_file);
+        if let File::Certificates(_, chain) = &self.cert_file {
+            let mut certs = vec![];
+            for cert in chain.certs() {
+                certs.push(cert.clone());
+            }
 
-            if let Ok(mut chain) = chain {
-                if let Some(ca_file) = &self.ca_file {
-                    if let Ok(ca_chain) = Chain::read(ca_file) {
-                        for ca_cert in ca_chain.into_vec() {
-                            chain.push(ca_cert);
-                        }
-                    } else {
-                        return Err("Cannot read CA file".to_string());
+            if let File::Certificates(_, ca_chain) = &self.ca_file {
+                for ca_cert in ca_chain.certs() {
+                    certs.push(ca_cert.clone());
+                }
+            }
+
+            certs.sort_by(|cert1, cert2| {
+                if cert1.subject_key_id() == cert2.authority_key_id() {
+                    Ordering::Greater
+                } else {
+                    Ordering::Less
+                }
+            });
+            let chain = Chain::from(certs.into_iter().unique().collect::<Vec<_>>());
+            if !chain.is_valid() {
+                return Err("Cannot merge files to valid chain - giving up!".to_string());
+            }
+            for cert in chain.certs() {
+                match cert.to_pem() {
+                    Ok(plain) => result.push_str(&plain),
+                    Err(_) => {
+                        return Err("Cannot merge files to valid chain - Cert error!".to_string());
                     }
                 }
-                let mut certs = chain.into_vec();
-                certs.sort_by(|cert1, cert2| {
-                    if cert1.subject_key_id() == cert2.authority_key_id() {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Less
-                    }
-                });
-                let chain = Chain::from(certs.into_iter().unique().collect::<Vec<_>>());
-                if !chain.is_valid() {
-                    return Err("Cannot merge files to valid chain - giving up!".to_string());
-                }
-                for cert in chain.certs() {
-                    match cert.to_pem() {
-                        Ok(plain) => result.push_str(&plain),
-                        Err(_) => {
-                            return Err(
-                                "Cannot merge files to valid chain - Cert error!".to_string()
-                            );
-                        }
-                    }
-                }
-            } else {
-                return Err("Cannot read Certificate file".to_string());
             }
         }
         Ok(result)
     }
 
     fn load_chain(&self) -> Result<Chain, String> {
-        if let Some(cert_file) = &self.cert_file {
-            let chain = Chain::read(cert_file);
-
-            if let Ok(mut chain) = chain {
-                if let Some(ca_file) = &self.ca_file {
-                    if let Ok(ca_chain) = Chain::read(ca_file) {
-                        for ca_cert in ca_chain.into_vec() {
-                            chain.push(ca_cert);
-                        }
-                    } else {
-                        return Err("Cannot read CA file".to_string());
-                    }
-                }
-                return Ok(chain);
-            } else {
-                return Err("Cannot read Certificate file".to_string());
+        if let File::Certificates(_, chain) = &self.cert_file {
+            let mut certs = vec![];
+            for cert in chain.certs() {
+                certs.push(cert.clone());
             }
+
+            if let File::Certificates(_, ca_chain) = &self.ca_file {
+                for ca_cert in ca_chain.certs() {
+                    certs.push(ca_cert.clone());
+                }
+            }
+            return Ok(Chain::from(certs));
         }
         Ok(Chain::from(vec![]))
     }
@@ -650,44 +661,36 @@ Authority-Key-Id:    {}
     fn indicator_state(&self) -> IndicatorState {
         let mut result = IndicatorState::Unknown;
 
-        if let Some(cert_file) = &self.cert_file {
-            let chain = Chain::read(cert_file);
+        if let File::Certificates(_, chain) = &self.cert_file {
+            result = if chain.is_valid() {
+                IndicatorState::Success
+            } else {
+                IndicatorState::Error
+            };
 
-            if let Ok(mut chain) = chain {
+            if let File::Certificates(_, ca_chain) = &self.ca_file {
+                let mut certs = vec![];
+                for cert in chain.certs() {
+                    certs.push(cert.clone());
+                }
+                for ca_cert in ca_chain.certs() {
+                    certs.push(ca_cert.clone());
+                }
+                let chain = Chain::from(certs);
                 result = if chain.is_valid() {
                     IndicatorState::Success
                 } else {
                     IndicatorState::Error
                 };
+            }
 
-                if let Some(ca_file) = &self.ca_file {
-                    if let Ok(ca_chain) = Chain::read(ca_file) {
-                        for ca_cert in ca_chain.into_vec() {
-                            chain.push(ca_cert);
-                        }
-                        result = if chain.is_valid() {
-                            IndicatorState::Success
-                        } else {
-                            IndicatorState::Error
-                        };
+            if let File::PrivateKey(_, private_key) = &self.key_file {
+                if let Some(cert) = chain.certs().first() {
+                    return if cert.public_key_matches(private_key) && chain.is_valid() {
+                        result
                     } else {
-                        result = IndicatorState::Error;
-                    }
-                }
-
-                if let Some(key) = &self.key_file {
-                    match PrivateKey::read(Path::new(&key)) {
-                        Ok(private_key) => {
-                            if let Some(cert) = chain.certs().first() {
-                                return if cert.public_key_matches(&private_key) && chain.is_valid() {
-                                    result
-                                } else {
-                                    IndicatorState::Error
-                                };
-                            }
-                        }
-                        _ => return IndicatorState::Error,
-                    }
+                        IndicatorState::Error
+                    };
                 }
             }
         }

@@ -72,7 +72,7 @@ fn main() -> Result<(), ()> {
                     match PrivateKey::read(Path::new(&key)) {
                         Ok(private_key) => {
                             if let Some(cert) = chain.certs().first() {
-                                if cert.public_key_matches(private_key) {
+                                if cert.public_key_matches(&private_key) {
                                     println!(
                                         "{}",
                                         style("✓ Private Key matches first Cert Public Key")

@@ -57,7 +57,7 @@ pub enum StringValue {
 impl Display for StringValue {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            StringValue::Valid(val) => write!(f, "{}", val),
+            StringValue::Valid(val) => write!(f, "{val}"),
             StringValue::Invalid => write!(f, "*Invalid*"),
             StringValue::Empty => write!(f, "*Empty*"),
         }
@@ -269,6 +269,10 @@ impl Chain {
 
         if certs.iter().filter(|item| item.is_err()).count() > 0 {
             return Err("Certificate chain contains invalid certificate".to_string());
+        }
+
+        if certs.is_empty() {
+            return Err("No Certificates found".to_string());
         }
 
         Ok(Self {
