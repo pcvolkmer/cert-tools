@@ -181,7 +181,7 @@ impl Ui {
                 };
                 Task::none()
             }
-            Message::Copy => clipboard::write::<Message>(self.output.text()),
+            Message::CopyValue(value) => clipboard::write::<Message>(value),
         }
     }
 
@@ -297,7 +297,7 @@ impl Ui {
             button("Copy to Clipboard").style(button::secondary)
         } else {
             button("Copy to Clipboard")
-                .on_press(Message::Copy)
+                .on_press(Message::CopyValue(self.output.text().trim().to_string()))
                 .style(button::secondary)
         };
         let buttons = if self.cert_file.is_some() {
@@ -342,52 +342,71 @@ impl Ui {
             if let Some(chain) = &self.chain {
                 for cert in chain.certs() {
                     result = result.push(
-                        Container::new(column![
-                            text(cert.name().to_string()).size(18),
-                            horizontal_rule(1),
-                            row![text("Issuer: ").width(200), text(cert.issuer().to_string())],
-                            row![
-                                text("Gültigkeit: ").width(200),
-                                text("Gültig von "),
-                                if cert.is_valid_not_before(&SystemTime::now()) {
-                                    text(cert.not_before().to_string())
-                                } else {
-                                    text(cert.not_before().to_string())
-                                        .color(Color::parse("#aa0000").unwrap())
-                                },
-                                text(" bis "),
-                                if cert.is_valid_not_after(&SystemTime::now()) {
-                                    text(cert.not_after().to_string())
-                                } else {
-                                    text(cert.not_after().to_string())
-                                        .color(Color::parse("#aa0000").unwrap())
-                                }
-                            ],
-                            row![
-                                text("SHA-1-Fingerprint: ").width(200),
-                                text(cert.fingerprint().sha1.to_string())
-                            ],
-                            row![
-                                text("SHA-256-Fingerprint: ").width(200),
-                                text(cert.fingerprint().sha256.to_string())
-                            ],
-                            row![
-                                text("Subject-Key-Id: ").width(200),
-                                text(cert.subject_key_id().to_string())
-                            ],
-                            row![
-                                text("Authority-Key-Id: ").width(200),
-                                text(cert.authority_key_id().to_string())
-                            ],
-                            if cert.dns_names().is_empty() {
-                                row![]
-                            } else {
+                        Container::new(
+                            column![
+                                text(cert.name().to_string()).size(18),
+                                horizontal_rule(1),
+                                row![text("Issuer: ").width(200), text(cert.issuer().to_string())],
                                 row![
-                                    text("DNS-Names: ").width(200),
-                                    text(cert.dns_names().join(", "))
+                                    text("Gültigkeit: ").width(200),
+                                    text("Gültig von "),
+                                    if cert.is_valid_not_before(&SystemTime::now()) {
+                                        text(cert.not_before().to_string())
+                                    } else {
+                                        text(cert.not_before().to_string())
+                                            .color(Color::parse("#aa0000").unwrap())
+                                    },
+                                    text(" bis "),
+                                    if cert.is_valid_not_after(&SystemTime::now()) {
+                                        text(cert.not_after().to_string())
+                                    } else {
+                                        text(cert.not_after().to_string())
+                                            .color(Color::parse("#aa0000").unwrap())
+                                    }
+                                ],
+                                row![
+                                    text("SHA-1-Fingerprint: ").width(200),
+                                    text(cert.fingerprint().sha1.to_string()),
+                                    horizontal_space(),
+                                    button("Copy to Clipboard")
+                                        .style(button::secondary)
+                                        .padding(1)
+                                        .on_press(Message::CopyValue(
+                                            cert.fingerprint().sha1.to_string()
+                                        )),
                                 ]
-                            },
-                        ])
+                                .align_y(alignment::Vertical::Center),
+                                row![
+                                    text("SHA-256-Fingerprint: ").width(200),
+                                    text(cert.fingerprint().sha256.to_string()),
+                                    horizontal_space(),
+                                    button("Copy to Clipboard")
+                                        .style(button::secondary)
+                                        .padding(1)
+                                        .on_press(Message::CopyValue(
+                                            cert.fingerprint().sha1.to_string()
+                                        )),
+                                ]
+                                .align_y(alignment::Vertical::Center),
+                                row![
+                                    text("Subject-Key-Id: ").width(200),
+                                    text(cert.subject_key_id().to_string())
+                                ],
+                                row![
+                                    text("Authority-Key-Id: ").width(200),
+                                    text(cert.authority_key_id().to_string())
+                                ],
+                                if cert.dns_names().is_empty() {
+                                    row![]
+                                } else {
+                                    row![
+                                        text("DNS-Names: ").width(200),
+                                        text(cert.dns_names().join(", "))
+                                    ]
+                                },
+                            ]
+                                .spacing(2),
+                        )
                             .padding(8)
                             .style(|_| container::Style {
                                 background: Some(Background::Color(Color::WHITE)),
@@ -721,7 +740,7 @@ enum Message {
     SetKeyFile(Result<PathBuf, Error>),
     Print,
     Merge,
-    Copy,
+    CopyValue(String),
 }
 
 #[derive(Debug, Clone)]
