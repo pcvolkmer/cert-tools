@@ -81,9 +81,12 @@ impl PrivateKey {
         let file = fs::read(path).map_err(|err| err.to_string())?;
         let key = PKey::private_key_from_pem(&file).map_err(|err| err.to_string())?;
 
-        Ok(Self {
-            modulus: hex_encode(key.rsa().unwrap().n().to_vec()).into(),
-        })
+        match key.rsa() {
+            Ok(key) => Ok(PrivateKey {
+                modulus: hex_encode(key.n().to_vec()).into(),
+            }),
+            Err(err) => Err(err.to_string()),
+        }
     }
 }
 
@@ -261,12 +264,15 @@ impl Chain {
         let file = fs::read(path).map_err(|err| err.to_string())?;
         let certs = X509::stack_from_pem(&file).map_err(|err| err.to_string())?;
 
-        let certs = certs
-            .iter()
-            .map(|cert| Certificate::from_x509(cert).unwrap())
-            .collect::<Vec<_>>();
+        let certs = certs.iter().map(Certificate::from_x509).collect::<Vec<_>>();
 
-        Ok(Self { certs })
+        if certs.iter().filter(|item| item.is_err()).count() > 0 {
+            return Err("Certificate chain contains invalid certificate".to_string());
+        }
+
+        Ok(Self {
+            certs: certs.into_iter().flatten().collect::<Vec<_>>(),
+        })
     }
 
     pub fn from(certs: Vec<Certificate>) -> Self {
