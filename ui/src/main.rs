@@ -87,7 +87,7 @@ impl Ui {
                     Ok(chain) => Some(chain),
                     _ => None,
                 };
-                self.update(Message::Print)
+                Task::done(Message::Print)
             }
             Message::ClearCaFile => {
                 self.ca_file = File::None;
@@ -95,7 +95,7 @@ impl Ui {
                     Ok(chain) => Some(chain),
                     _ => None,
                 };
-                self.update(Message::Print)
+                Task::done(Message::Print)
             }
             Message::ClearKeyFile => {
                 self.key_file = File::None;
@@ -103,7 +103,7 @@ impl Ui {
                     Ok(chain) => Some(chain),
                     _ => None,
                 };
-                self.update(Message::Print)
+                Task::done(Message::Print)
             }
             Message::SetCertFile(file) => {
                 match file {
@@ -121,7 +121,7 @@ impl Ui {
                     }
                     _ => self.cert_file = File::None,
                 };
-                self.update(Message::Print)
+                Task::done(Message::Print)
             }
             Message::SetCaFile(file) => {
                 match file {
@@ -138,7 +138,7 @@ impl Ui {
                     }
                     _ => self.ca_file = File::None,
                 };
-                self.update(Message::Print)
+                Task::done(Message::Print)
             }
             Message::SetKeyFile(file) => {
                 match file {
@@ -151,7 +151,7 @@ impl Ui {
                     }
                     _ => self.key_file = File::None,
                 };
-                self.update(Message::Print)
+                Task::done(Message::Print)
             }
             Message::Print => {
                 match self.print_output() {
