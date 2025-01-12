@@ -37,7 +37,7 @@ pub fn hex_encode<T: AsRef<[u8]>>(s: T) -> String {
         .to_ascii_uppercase()
 }
 
-#[allow(clippy::expect_used, clippy::unwrap_used)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::cast_possible_wrap)]
 fn asn1time(time: &SystemTime) -> Asn1Time {
     Asn1Time::from_unix(
         time.duration_since(UNIX_EPOCH)
