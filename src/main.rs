@@ -93,57 +93,12 @@ fn main() -> Result<(), ()> {
                 return Err(());
             }
         }
-        SubCommand::Merge { cert, ca } => {
-            let chain = Chain::read(Path::new(&cert));
-
-            if let Ok(mut chain) = chain {
-                if let Some(ca) = ca {
-                    if let Ok(ca_chain) = Chain::read(Path::new(&ca)) {
-                        for ca_cert in ca_chain.into_vec() {
-                            chain.push(ca_cert);
-                        }
-                    } else {
-                        eprintln!("{}", style(format!("Cannot read file: {ca}")).red());
-                        return Err(());
-                    }
-                }
-                if !chain.is_valid() {
-                    eprintln!(
-                        "{}",
-                        style("Cannot merge files to valid chain - try to sort unique certs")
-                            .yellow()
-                    );
-                }
-                let mut certs = chain.into_vec();
-                certs.sort_by(|cert1, cert2| {
-                    if cert1.subject_key_id() == cert2.authority_key_id() {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Less
-                    }
-                });
-                let chain = Chain::from(certs.into_iter().unique().collect::<Vec<_>>());
-                if !chain.is_valid() {
-                    eprintln!(
-                        "{}",
-                        style("Cannot merge files to valid chain - giving up!").red()
-                    );
-                    return Err(());
-                }
-                for cert in chain.certs() {
-                    if let Ok(plain) = cert.to_pem() { print!("{plain}") } else {
-                        eprintln!(
-                            "{}",
-                            style("Cannot merge files to valid chain - Cert error!").red()
-                        );
-                        return Err(());
-                    }
-                }
-            } else {
-                eprintln!("{}", style(format!("Cannot read file: {cert}")).red());
-                return Err(());
-            }
-            eprintln!("{}", style("Success!").green());
+        SubCommand::Merge { cert, ca } => match merge(&cert, ca) {
+            Ok(pem) => {
+                println!("{pem}");
+                eprintln!("{}", style("success").green());
+            },
+            Err(err) => eprintln!("{}", style(err).red()),
         }
     }
     Ok(())
@@ -183,4 +138,40 @@ Authority-Key-Id:    {}",
             style(cert.dns_names().join(", "))
         );
     }
+}
+
+fn merge(cert: &str, ca: Option<String>) -> Result<String, String> {
+    let chain = Chain::read(Path::new(&cert));
+
+    if let Ok(mut chain) = chain {
+        if let Some(ca) = ca {
+            if let Ok(ca_chain) = Chain::read(Path::new(&ca)) {
+                for ca_cert in ca_chain.into_vec() {
+                    chain.push(ca_cert);
+                }
+            } else {
+                return Err(format!("Cannot read file: {ca}"));
+            }
+        }
+        let mut certs = chain.into_vec();
+        certs.sort_by(|cert1, cert2| {
+            if cert1.subject_key_id() == cert2.authority_key_id() {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            }
+        });
+        let chain = Chain::from(certs.into_iter().unique().collect::<Vec<_>>());
+        if !chain.is_valid() {
+            return Err("Cannot merge files to valid chain - giving up!".to_string());
+        }
+        let mut pem = vec![];
+        for cert in chain.certs() {
+            if let Ok(plain) = cert.to_pem() { pem.push(plain) } else {
+                return Err("Cannot merge files to valid chain - Cert error!".to_string());
+            }
+        }
+        return Ok(pem.join(""));
+    }
+    Err(format!("Cannot read file: {cert}"))
 }
