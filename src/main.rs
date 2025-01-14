@@ -42,14 +42,14 @@ fn main() -> Result<(), ()> {
                             chain.push(ca_cert);
                         }
                     } else {
-                        println!("{}", style(format!("Cannot read file: {}", ca)).red());
+                        println!("{}", style(format!("Cannot read file: {ca}")).red());
                         return Err(());
                     }
                 }
 
                 for cert in chain.certs() {
                     print_cert(cert);
-                    println!()
+                    println!();
                 }
 
                 if chain.has_missing_tail() {
@@ -77,19 +77,19 @@ fn main() -> Result<(), ()> {
                                         "{}",
                                         style("✓ Private Key matches first Cert Public Key")
                                             .green()
-                                    )
+                                    );
                                 } else {
-                                    println!("{}", style("! Private Key does not match the first Cert Public Key").red())
+                                    println!("{}", style("! Private Key does not match the first Cert Public Key").red());
                                 }
                             }
                         }
                         _ => {
-                            println!("{}", style("Could not read Private Key").red())
+                            println!("{}", style("Could not read Private Key").red());
                         }
                     }
                 }
             } else {
-                println!("{}", style(format!("Cannot read file: {}", cert)).red());
+                println!("{}", style(format!("Cannot read file: {cert}")).red());
                 return Err(());
             }
         }
@@ -103,7 +103,7 @@ fn main() -> Result<(), ()> {
                             chain.push(ca_cert);
                         }
                     } else {
-                        eprintln!("{}", style(format!("Cannot read file: {}", ca)).red());
+                        eprintln!("{}", style(format!("Cannot read file: {ca}")).red());
                         return Err(());
                     }
                 }
@@ -131,19 +131,16 @@ fn main() -> Result<(), ()> {
                     return Err(());
                 }
                 for cert in chain.certs() {
-                    match cert.to_pem() {
-                        Ok(plain) => print!("{}", plain),
-                        Err(_) => {
-                            eprintln!(
-                                "{}",
-                                style("Cannot merge files to valid chain - Cert error!").red()
-                            );
-                            return Err(());
-                        }
+                    if let Ok(plain) = cert.to_pem() { print!("{plain}") } else {
+                        eprintln!(
+                            "{}",
+                            style("Cannot merge files to valid chain - Cert error!").red()
+                        );
+                        return Err(());
                     }
                 }
             } else {
-                eprintln!("{}", style(format!("Cannot read file: {}", cert)).red());
+                eprintln!("{}", style(format!("Cannot read file: {cert}")).red());
                 return Err(());
             }
             eprintln!("{}", style("Success!").green());
