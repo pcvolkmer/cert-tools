@@ -12,6 +12,7 @@ use iced::{
 };
 use itertools::Itertools;
 use std::cmp::Ordering;
+use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
@@ -51,8 +52,10 @@ struct Ui {
 
     mode: UiMode,
     chain: Option<Chain>,
+    fixed_chain: Option<Chain>,
     output: Content,
     status: String,
+    indicator_state: IndicatorState,
 }
 
 impl Ui {
@@ -64,8 +67,10 @@ impl Ui {
                 key_file: File::None,
                 mode: UiMode::CertList,
                 chain: None,
+                fixed_chain: None,
                 output: Content::default(),
                 status: String::new(),
+                indicator_state: IndicatorState::Unknown,
             },
             Task::none(),
         )
@@ -87,12 +92,27 @@ impl Ui {
                     Ok(chain) => Some(chain),
                     _ => None,
                 };
+                self.fixed_chain = match &self.chain {
+                    Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                        Ok(chain) => Some(chain),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                self.indicator_state = IndicatorState::Unknown;
                 Task::done(Message::Print)
             }
             Message::ClearCaFile => {
                 self.ca_file = File::None;
                 self.chain = match self.load_chain() {
                     Ok(chain) => Some(chain),
+                    _ => None,
+                };
+                self.fixed_chain = match &self.chain {
+                    Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                        Ok(chain) => Some(chain),
+                        _ => None,
+                    },
                     _ => None,
                 };
                 Task::done(Message::Print)
@@ -116,6 +136,13 @@ impl Ui {
                             Ok(chain) => Some(chain),
                             _ => None,
                         };
+                        self.fixed_chain = match &self.chain {
+                            Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                                Ok(chain) => Some(chain),
+                                _ => None,
+                            },
+                            _ => None,
+                        };
                         self.output = Content::default();
                         self.mode = UiMode::CertList;
                     }
@@ -132,6 +159,13 @@ impl Ui {
                         };
                         self.chain = match self.load_chain() {
                             Ok(chain) => Some(chain),
+                            _ => None,
+                        };
+                        self.fixed_chain = match &self.chain {
+                            Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                                Ok(chain) => Some(chain),
+                                _ => None,
+                            },
                             _ => None,
                         };
                         self.output = Content::default();
@@ -165,6 +199,7 @@ impl Ui {
                         self.status = err
                     }
                 };
+                self.indicator_state = self.indicator_state();
                 Task::none()
             }
             Message::Merge => {
@@ -182,6 +217,36 @@ impl Ui {
                 Task::none()
             }
             Message::CopyValue(value) => clipboard::write::<Message>(value),
+            Message::Cleanup => {
+                if let Some(chain) = self.fixed_chain.take() {
+                    self.chain = Some(chain);
+                    self.mode = UiMode::CertList;
+                }
+                self.indicator_state = IndicatorState::Cleaned;
+                Task::none()
+            }
+            Message::PickExportFile => Task::perform(export_file(), Message::ExportToFile),
+            Message::ExportToFile(file) => {
+                match file {
+                    Ok(file) => {
+                        match self.merge_output() {
+                            Ok(output) => {
+                                match fs::write(&file, output) {
+                                    Ok(_) => self.status = format!("Exported to {}", file.display()),
+                                    Err(err) => self.status = format!("{:?}", err)
+                                }
+                            }
+                            Err(err) => {
+                                self.status = err
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        self.status = format!("{:?}", err);
+                    }
+                }
+                Task::none()
+            }
         }
     }
 
@@ -293,11 +358,25 @@ impl Ui {
                 .align_y(alignment::Vertical::Center)
         };
 
+        let export_button = if !(self.indicator_state == IndicatorState::Success || self.indicator_state == IndicatorState::Cleaned) {
+            button("Export").style(button::primary)
+        } else {
+            button("Export")
+                .on_press(Message::PickExportFile)
+                .style(button::primary)
+        };
         let clip_button = if self.output.text().trim().is_empty() {
             button("Copy to Clipboard").style(button::secondary)
         } else {
             button("Copy to Clipboard")
                 .on_press(Message::CopyValue(self.output.text().trim().to_string()))
+                .style(button::secondary)
+        };
+        let cleanup_button = if self.fixed_chain.is_none() {
+            button("Cleanup").style(button::secondary)
+        } else {
+            button("Cleanup")
+                .on_press(Message::Cleanup)
                 .style(button::secondary)
         };
         let buttons = if self.cert_file.is_some() {
@@ -308,16 +387,20 @@ impl Ui {
                 button("Merge into PEM")
                     .on_press(Message::Merge)
                     .style(button::primary),
+                export_button,
                 text(" "),
                 clip_button,
+                cleanup_button,
                 horizontal_space(),
             ]
         } else {
             row![
                 button("Print information").style(button::primary),
                 button("Merge into PEM").style(button::primary),
+                export_button,
                 text(" "),
                 clip_button,
+                cleanup_button,
                 horizontal_space(),
             ]
         }
@@ -520,10 +603,11 @@ impl Ui {
         };
 
         let indicator = {
-            let content = match self.indicator_state() {
+            let content = match self.indicator_state {
                 IndicatorState::Unknown => ("?", "#aaaaaa", "#ffffff"),
                 IndicatorState::Success => ("OK", "#00aa00", "#ffffff"),
                 IndicatorState::Error => ("Not OK", "#aa0000", "#ffffff"),
+                IndicatorState::Cleaned => ("Cleaned", "#00aa88", "#ffffff"),
             };
 
             container(
@@ -687,43 +771,15 @@ Authority-Key-Id:    {}
     }
 
     fn indicator_state(&self) -> IndicatorState {
-        let mut result = IndicatorState::Unknown;
-
-        if let File::Certificates(_, chain) = &self.cert_file {
-            result = if chain.is_valid() {
+        if let Some(chain) = &self.chain {
+            if chain.is_valid() {
                 IndicatorState::Success
             } else {
                 IndicatorState::Error
-            };
-
-            if let File::Certificates(_, ca_chain) = &self.ca_file {
-                let mut certs = vec![];
-                for cert in chain.certs() {
-                    certs.push(cert.clone());
-                }
-                for ca_cert in ca_chain.certs() {
-                    certs.push(ca_cert.clone());
-                }
-                let chain = Chain::from(certs);
-                result = if chain.is_valid() {
-                    IndicatorState::Success
-                } else {
-                    IndicatorState::Error
-                };
             }
-
-            if let File::PrivateKey(_, private_key) = &self.key_file {
-                if let Some(cert) = chain.certs().first() {
-                    return if cert.public_key_matches(private_key) && chain.is_valid() {
-                        result
-                    } else {
-                        IndicatorState::Error
-                    };
-                }
-            }
+        } else {
+            IndicatorState::Unknown
         }
-
-        result
     }
 }
 
@@ -741,6 +797,9 @@ enum Message {
     Print,
     Merge,
     CopyValue(String),
+    Cleanup,
+    PickExportFile,
+    ExportToFile(Result<PathBuf, Error>)
 }
 
 #[derive(Debug, Clone)]
@@ -748,16 +807,29 @@ enum Error {
     Undefined,
 }
 
+#[derive(PartialEq)]
 enum IndicatorState {
     Unknown,
     Success,
     Error,
+    Cleaned,
 }
 
 async fn pick_file() -> Result<PathBuf, Error> {
     let path = rfd::AsyncFileDialog::new()
         .set_title("Open file...")
         .pick_file()
+        .await
+        .ok_or(Error::Undefined)?;
+
+    Ok(path.into())
+}
+
+async fn export_file() -> Result<PathBuf, Error> {
+    let path = rfd::AsyncFileDialog::new()
+        .set_title("Export file...")
+        .add_filter("PEM-File", &["pem", "crt"])
+        .save_file()
         .await
         .ok_or(Error::Undefined)?;
 
