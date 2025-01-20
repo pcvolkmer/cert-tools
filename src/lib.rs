@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-
+use std::cmp::Ordering;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
@@ -27,6 +27,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use itertools::Itertools;
 
 pub fn hex_encode<T: AsRef<[u8]>>(s: T) -> String {
     s.as_ref()
@@ -282,6 +283,22 @@ impl Chain {
 
     pub fn from(certs: Vec<Certificate>) -> Self {
         Self { certs }
+    }
+
+    pub fn fixed_from(certs: Vec<Certificate>) -> Result<Chain, String> {
+        let mut certs = certs.iter().collect::<Vec<_>>();
+        certs.sort_by(|cert1, cert2| {
+            if cert1.subject_key_id() == cert2.authority_key_id() {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            }
+        });
+        let chain = Chain::from(certs.iter().unique().map(|&c| c.clone()).collect::<Vec<_>>());
+        if !chain.is_valid() {
+            return Err("Cannot merge files to valid chain - giving up!".to_string());
+        }
+        Ok(chain)
     }
 
     pub fn certs(&self) -> &Vec<Certificate> {
