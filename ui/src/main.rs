@@ -1,17 +1,16 @@
 #![windows_subsystem = "windows"]
 
 use cert_tools::{Chain, PrivateKey};
+use iced::border::Radius;
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     Container, Scrollable,
 };
 use iced::{
-    alignment, application, clipboard, Background, Color, Element, Font, Length, Pixels, Settings,
-    Size, Task,
+    alignment, application, clipboard, color, Background, Border, Color, Element, Font, Length,
+    Pixels, Settings, Size, Task,
 };
-use itertools::Itertools;
-use std::cmp::Ordering;
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -55,7 +54,8 @@ struct Ui {
     fixed_chain: Option<Chain>,
     output: Content,
     status: String,
-    indicator_state: IndicatorState,
+    chain_indicator_state: IndicatorState,
+    key_indicator_state: IndicatorState,
 }
 
 impl Ui {
@@ -70,7 +70,8 @@ impl Ui {
                 fixed_chain: None,
                 output: Content::default(),
                 status: String::new(),
-                indicator_state: IndicatorState::Unknown,
+                chain_indicator_state: IndicatorState::Unknown,
+                key_indicator_state: IndicatorState::Unknown,
             },
             Task::none(),
         )
@@ -88,18 +89,12 @@ impl Ui {
             Message::PickKeyFile => Task::perform(pick_file(), Message::SetKeyFile),
             Message::ClearCertFile => {
                 self.cert_file = File::None;
-                self.chain = match self.load_chain() {
-                    Ok(chain) => Some(chain),
-                    _ => None,
-                };
-                self.fixed_chain = match &self.chain {
-                    Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
-                        Ok(chain) => Some(chain),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                self.indicator_state = IndicatorState::Unknown;
+                self.ca_file = File::None;
+                self.key_file = File::None;
+                self.chain = None;
+                self.fixed_chain = None;
+                self.chain_indicator_state = IndicatorState::Unknown;
+                self.key_indicator_state = IndicatorState::Unknown;
                 Task::done(Message::Print)
             }
             Message::ClearCaFile => {
@@ -115,14 +110,12 @@ impl Ui {
                     },
                     _ => None,
                 };
+                self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
             }
             Message::ClearKeyFile => {
                 self.key_file = File::None;
-                self.chain = match self.load_chain() {
-                    Ok(chain) => Some(chain),
-                    _ => None,
-                };
+                self.key_indicator_state = IndicatorState::Unknown;
                 Task::done(Message::Print)
             }
             Message::SetCertFile(file) => {
@@ -148,6 +141,7 @@ impl Ui {
                     }
                     _ => self.cert_file = File::None,
                 };
+                self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
             }
             Message::SetCaFile(file) => {
@@ -172,6 +166,7 @@ impl Ui {
                     }
                     _ => self.ca_file = File::None,
                 };
+                self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
             }
             Message::SetKeyFile(file) => {
@@ -181,10 +176,10 @@ impl Ui {
                             Ok(key) => File::PrivateKey(file, Box::new(key)),
                             Err(_) => File::Invalid(file),
                         };
-                        self.output = Content::default();
                     }
                     _ => self.key_file = File::None,
                 };
+                self.key_indicator_state = self.key_indicator_state();
                 Task::done(Message::Print)
             }
             Message::Print => {
@@ -199,11 +194,10 @@ impl Ui {
                         self.status = err
                     }
                 };
-                self.indicator_state = self.indicator_state();
                 Task::none()
             }
-            Message::Merge => {
-                match self.merge_output() {
+            Message::PrintPem => {
+                match self.pem_output() {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
                         self.status = String::new();
@@ -222,24 +216,18 @@ impl Ui {
                     self.chain = Some(chain);
                     self.mode = UiMode::CertList;
                 }
-                self.indicator_state = IndicatorState::Cleaned;
+                self.chain_indicator_state = IndicatorState::Cleaned;
                 Task::none()
             }
             Message::PickExportFile => Task::perform(export_file(), Message::ExportToFile),
             Message::ExportToFile(file) => {
                 match file {
-                    Ok(file) => {
-                        match self.merge_output() {
-                            Ok(output) => {
-                                match fs::write(&file, output) {
-                                    Ok(_) => self.status = format!("Exported to {}", file.display()),
-                                    Err(err) => self.status = format!("{:?}", err)
-                                }
-                            }
-                            Err(err) => {
-                                self.status = err
-                            }
-                        }
+                    Ok(file) => match self.pem_output() {
+                        Ok(output) => match fs::write(&file, output) {
+                            Ok(_) => self.status = format!("Exported to {}", file.display()),
+                            Err(err) => self.status = format!("{:?}", err),
+                        },
+                        Err(err) => self.status = err,
                     },
                     Err(err) => {
                         self.status = format!("{:?}", err);
@@ -253,13 +241,13 @@ impl Ui {
     fn view(&self) -> Element<Message> {
         fn grey_style() -> text::Style {
             text::Style {
-                color: Some(Color::parse("#888888").unwrap()),
+                color: Some(color!(0x888888)),
             }
         }
 
         fn red_style() -> text::Style {
             text::Style {
-                color: Some(Color::parse("#aa0000").unwrap()),
+                color: Some(color!(0xaa0000)),
             }
         }
 
@@ -358,10 +346,12 @@ impl Ui {
                 .align_y(alignment::Vertical::Center)
         };
 
-        let export_button = if !(self.indicator_state == IndicatorState::Success || self.indicator_state == IndicatorState::Cleaned) {
-            button("Export").style(button::primary)
+        let export_button = if !(self.chain_indicator_state == IndicatorState::Success
+            || self.chain_indicator_state == IndicatorState::Cleaned)
+        {
+            button("Export PEM").style(button::primary)
         } else {
-            button("Export")
+            button("Export PEM")
                 .on_press(Message::PickExportFile)
                 .style(button::primary)
         };
@@ -372,7 +362,9 @@ impl Ui {
                 .on_press(Message::CopyValue(self.output.text().trim().to_string()))
                 .style(button::secondary)
         };
-        let cleanup_button = if self.fixed_chain.is_none() {
+        let cleanup_button = if self.fixed_chain.is_none()
+            || self.chain_indicator_state == IndicatorState::Success
+        {
             button("Cleanup").style(button::secondary)
         } else {
             button("Cleanup")
@@ -384,8 +376,8 @@ impl Ui {
                 button("Print information")
                     .on_press(Message::Print)
                     .style(button::primary),
-                button("Merge into PEM")
-                    .on_press(Message::Merge)
+                button("Print PEM")
+                    .on_press(Message::PrintPem)
                     .style(button::primary),
                 export_button,
                 text(" "),
@@ -396,7 +388,7 @@ impl Ui {
         } else {
             row![
                 button("Print information").style(button::primary),
-                button("Merge into PEM").style(button::primary),
+                button("Print PEM").style(button::primary),
                 export_button,
                 text(" "),
                 clip_button,
@@ -567,9 +559,7 @@ impl Ui {
                                 "Private Key matches first Cert Public Key"
                             ))
                             .style(|_| container::Style {
-                                background: Some(Background::Color(
-                                    Color::parse("#00aa00").unwrap()
-                                )),
+                                background: Some(Background::Color(color!(0x00aa00))),
                                 text_color: Some(Color::WHITE),
                                 ..container::Style::default()
                             })
@@ -580,9 +570,7 @@ impl Ui {
                                 "Private Key does not match the first Cert Public Key"
                             ))
                             .style(|_| container::Style {
-                                background: Some(Background::Color(
-                                    Color::parse("#aa0000").unwrap()
-                                )),
+                                background: Some(Background::Color(color!(0xaa0000))),
                                 text_color: Some(Color::WHITE),
                                 ..container::Style::default()
                             })
@@ -603,33 +591,63 @@ impl Ui {
         };
 
         let indicator = {
-            let content = match self.indicator_state {
-                IndicatorState::Unknown => ("?", "#aaaaaa", "#ffffff"),
-                IndicatorState::Success => ("OK", "#00aa00", "#ffffff"),
-                IndicatorState::Error => ("Not OK", "#aa0000", "#ffffff"),
-                IndicatorState::Cleaned => ("Cleaned", "#00aa88", "#ffffff"),
+            let chain_content = match self.chain_indicator_state {
+                IndicatorState::Unknown => ("No Chain", color!(0xaaaaaa, 0.2), color!(0xaaaaaa)),
+                IndicatorState::Success => ("Chain OK", color!(0x00aa00, 0.2), color!(0x00aa00)),
+                IndicatorState::Error => ("Chain not OK", color!(0xaa0000, 0.2), color!(0xaa0000)),
+                IndicatorState::Cleaned => {
+                    ("Chain cleaned", color!(0x00aa88, 0.2), color!(0x00aa88))
+                }
+            };
+
+            let key_content = match self.key_indicator_state {
+                IndicatorState::Success => ("Key OK", color!(0x00aa00, 0.2), color!(0x00aa00)),
+                IndicatorState::Error => ("Key not OK", color!(0xaa0000, 0.2), color!(0xaa0000)),
+                _ => ("No Key", color!(0xaaaaaa, 0.2), color!(0xaaaaaa)),
             };
 
             container(
-                container(text(content.0))
-                    .style(|_| container::Style {
-                        background: Some(Background::Color(Color::parse(content.1).unwrap())),
-                        text_color: Some(Color::parse(content.2).unwrap()),
-                        ..container::Style::default()
-                    })
-                    .center_x(72)
-                    .center_y(72),
+                column![
+                    container(text(chain_content.0))
+                        .style(move |_| container::Style {
+                            background: Some(Background::Color(chain_content.1)),
+                            text_color: Some(chain_content.2),
+                            border: Border {
+                                color: chain_content.2,
+                                width: 1.0,
+                                radius: Radius::from(4)
+                            },
+                            ..container::Style::default()
+                        })
+                        .center_x(160)
+                        .center_y(40),
+                    container(text(key_content.0))
+                        .style(move |_| container::Style {
+                            background: Some(Background::Color(key_content.1)),
+                            text_color: Some(key_content.2),
+                            border: Border {
+                                color: key_content.2,
+                                width: 1.0,
+                                radius: Radius::from(4)
+                            },
+                            ..container::Style::default()
+                        })
+                        .center_x(160)
+                        .center_y(40),
+                ]
+                    .spacing(4),
             )
-                .center_x(80)
+                .center_x(160)
                 .center_y(80)
         };
 
         column![
             row![
-                column![cert_file_input, ca_file_input, key_file_input].spacing(2),
-                indicator,
+                container(column![cert_file_input, ca_file_input, key_file_input].spacing(2))
+                    .center_y(96),
+                indicator.center_y(96),
             ]
-            .spacing(96),
+            .spacing(40),
             horizontal_rule(1),
             buttons,
             horizontal_rule(1),
@@ -716,31 +734,10 @@ Authority-Key-Id:    {}
         Ok(output.join("\n"))
     }
 
-    fn merge_output(&self) -> Result<String, String> {
+    fn pem_output(&self) -> Result<String, String> {
         let mut result = String::new();
-        if let File::Certificates(_, chain) = &self.cert_file {
-            let mut certs = vec![];
-            for cert in chain.certs() {
-                certs.push(cert.clone());
-            }
-
-            if let File::Certificates(_, ca_chain) = &self.ca_file {
-                for ca_cert in ca_chain.certs() {
-                    certs.push(ca_cert.clone());
-                }
-            }
-
-            certs.sort_by(|cert1, cert2| {
-                if cert1.subject_key_id() == cert2.authority_key_id() {
-                    Ordering::Greater
-                } else {
-                    Ordering::Less
-                }
-            });
-            let chain = Chain::from(certs.into_iter().unique().collect::<Vec<_>>());
-            if !chain.is_valid() {
-                return Err("Cannot merge files to valid chain - giving up!".to_string());
-            }
+        let chain = self.chain.as_ref();
+        if let Some(chain) = chain {
             for cert in chain.certs() {
                 match cert.to_pem() {
                     Ok(plain) => result.push_str(&plain),
@@ -770,7 +767,7 @@ Authority-Key-Id:    {}
         Ok(Chain::from(vec![]))
     }
 
-    fn indicator_state(&self) -> IndicatorState {
+    fn chain_indicator_state(&self) -> IndicatorState {
         if let Some(chain) = &self.chain {
             if chain.is_valid() {
                 IndicatorState::Success
@@ -780,6 +777,21 @@ Authority-Key-Id:    {}
         } else {
             IndicatorState::Unknown
         }
+    }
+
+    fn key_indicator_state(&self) -> IndicatorState {
+        if let Some(chain) = &self.chain {
+            if let File::PrivateKey(_, private_key) = &self.key_file {
+                if let Some(cert) = chain.certs().first() {
+                    return if cert.public_key_matches(private_key) {
+                        IndicatorState::Success
+                    } else {
+                        IndicatorState::Error
+                    };
+                }
+            }
+        }
+        IndicatorState::Unknown
     }
 }
 
@@ -795,11 +807,11 @@ enum Message {
     SetCaFile(Result<PathBuf, Error>),
     SetKeyFile(Result<PathBuf, Error>),
     Print,
-    Merge,
+    PrintPem,
     CopyValue(String),
     Cleanup,
     PickExportFile,
-    ExportToFile(Result<PathBuf, Error>)
+    ExportToFile(Result<PathBuf, Error>),
 }
 
 #[derive(Debug, Clone)]
