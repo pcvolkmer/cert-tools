@@ -104,7 +104,7 @@ impl Ui {
                     _ => None,
                 };
                 self.fixed_chain = match &self.chain {
-                    Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                    Some(chain) => match Chain::create_fixed(chain.certs()) {
                         Ok(chain) => Some(chain),
                         _ => None,
                     },
@@ -130,7 +130,7 @@ impl Ui {
                             _ => None,
                         };
                         self.fixed_chain = match &self.chain {
-                            Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                            Some(chain) => match Chain::create_fixed(chain.certs()) {
                                 Ok(chain) => Some(chain),
                                 _ => None,
                             },
@@ -156,7 +156,7 @@ impl Ui {
                             _ => None,
                         };
                         self.fixed_chain = match &self.chain {
-                            Some(chain) => match Chain::fixed_from(chain.certs().to_vec()) {
+                            Some(chain) => match Chain::create_fixed(chain.certs()) {
                                 Ok(chain) => Some(chain),
                                 _ => None,
                             },

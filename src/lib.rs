@@ -285,8 +285,8 @@ impl Chain {
         Self { certs }
     }
 
-    pub fn fixed_from(certs: Vec<Certificate>) -> Result<Chain, String> {
-        let mut certs = certs.iter().collect::<Vec<_>>();
+    pub fn create_fixed(certs: &[Certificate]) -> Result<Chain, String> {
+        let mut certs = certs.to_vec();
         certs.sort_by(|cert1, cert2| {
             if cert1.subject_key_id() == cert2.authority_key_id() {
                 Ordering::Greater
@@ -294,7 +294,7 @@ impl Chain {
                 Ordering::Less
             }
         });
-        let chain = Chain::from(certs.iter().unique().map(|&c| c.clone()).collect::<Vec<_>>());
+        let chain = Chain::from(certs.iter().unique().cloned().collect::<Vec<_>>());
         if !chain.is_valid() {
             return Err("Cannot merge files to valid chain - giving up!".to_string());
         }
