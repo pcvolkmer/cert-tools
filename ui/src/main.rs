@@ -2,10 +2,9 @@
 
 use cert_tools::{Chain, PrivateKey};
 use iced::border::Radius;
-use iced::widget::text::Shaping;
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
-    button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
+    self, button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     text_input, Container, Scrollable,
 };
 use iced::{
@@ -23,7 +22,7 @@ fn main() -> iced::Result {
             ..Settings::default()
         })
         .resizable(false)
-        .window_size(Size::new(1000.0, 800.0))
+        .window_size(Size::new(1020.0, 800.0))
         .run_with(Ui::new)
 }
 
@@ -256,17 +255,17 @@ impl Ui {
                 File::Invalid(_) => text_input(placeholder, &text),
                 _ => text_input(placeholder, &text),
             }
-                .width(Length::Fill)
-                .style(move |theme, status| text_input::Style {
-                    background: Background::Color(Color::WHITE),
-                    placeholder: color!(0x888888),
-                    value: match file {
-                        File::Certificates(_, _) | File::PrivateKey(_, _) => Color::BLACK,
-                        File::Invalid(_) => color!(0xaa0000),
-                        File::None => color!(0x888888),
-                    },
-                    ..text_input::default(theme, status)
-                })
+            .width(Length::Fill)
+            .style(move |theme, status| text_input::Style {
+                background: Background::Color(Color::WHITE),
+                placeholder: color!(0x888888),
+                value: match file {
+                    File::Certificates(_, _) | File::PrivateKey(_, _) => Color::BLACK,
+                    File::Invalid(_) => color!(0xaa0000),
+                    File::None => color!(0x888888),
+                },
+                ..text_input::default(theme, status)
+            })
         }
 
         let cert_file_input = {
@@ -285,7 +284,7 @@ impl Ui {
                     .style(button::secondary)
             ]
             .spacing(2)
-                .align_y(alignment::Vertical::Center)
+            .align_y(alignment::Vertical::Center)
         };
 
         let ca_file_input = {
@@ -308,7 +307,7 @@ impl Ui {
                 }
             ]
             .spacing(2)
-                .align_y(alignment::Vertical::Center)
+            .align_y(alignment::Vertical::Center)
         };
 
         let key_file_input = {
@@ -331,7 +330,7 @@ impl Ui {
                 }
             ]
             .spacing(2)
-                .align_y(alignment::Vertical::Center)
+            .align_y(alignment::Vertical::Center)
         };
 
         let export_button = if !(self.chain_indicator_state == IndicatorState::Success
@@ -403,33 +402,38 @@ impl Ui {
             let mut result = column![];
 
             if let Some(chain) = &self.chain {
+                fn monospace_text<'a>(s: String) -> widget::Text<'a> {
+                    text(s)
+                        .shaping(text::Shaping::Advanced)
+                        .font(Font::MONOSPACE)
+                        .size(12)
+                }
+
                 for cert in chain.certs() {
                     result = result.push(
                         Container::new(
                             column![
                                 text(cert.name().to_string()).size(18),
                                 horizontal_rule(1),
-                                row![text("Issuer: ").width(200), text(cert.issuer().to_string())],
+                                row![text("Issuer: ").width(160), text(cert.issuer().to_string())],
                                 row![
-                                    text("Gültigkeit: ").width(200),
+                                    text("Gültigkeit: ").width(160),
                                     text("Gültig von "),
                                     if cert.is_valid_not_before(&SystemTime::now()) {
                                         text(cert.not_before().to_string())
                                     } else {
-                                        text(cert.not_before().to_string())
-                                            .color(color!(0xaa0000))
+                                        text(cert.not_before().to_string()).color(color!(0xaa0000))
                                     },
                                     text(" bis "),
                                     if cert.is_valid_not_after(&SystemTime::now()) {
                                         text(cert.not_after().to_string())
                                     } else {
-                                        text(cert.not_after().to_string())
-                                            .color(color!(0xaa0000))
+                                        text(cert.not_after().to_string()).color(color!(0xaa0000))
                                     }
                                 ],
                                 row![
-                                    text("SHA-1-Fingerprint: ").width(200),
-                                    text(cert.fingerprint().sha1.to_string()),
+                                    text("SHA-1-Fingerprint: ").width(160),
+                                    monospace_text(cert.fingerprint().sha1.to_string()),
                                     horizontal_space(),
                                     button("Copy to Clipboard")
                                         .style(button::secondary)
@@ -440,8 +444,8 @@ impl Ui {
                                 ]
                                 .align_y(alignment::Vertical::Center),
                                 row![
-                                    text("SHA-256-Fingerprint: ").width(200),
-                                    text(cert.fingerprint().sha256.to_string()),
+                                    text("SHA-256-Fingerprint: ").width(160),
+                                    monospace_text(cert.fingerprint().sha256.to_string()),
                                     horizontal_space(),
                                     button("Copy to Clipboard")
                                         .style(button::secondary)
@@ -452,30 +456,30 @@ impl Ui {
                                 ]
                                 .align_y(alignment::Vertical::Center),
                                 row![
-                                    text("Subject-Key-Id: ").width(200),
-                                    text(cert.subject_key_id().to_string())
+                                    text("Subject-Key-Id: ").width(160),
+                                    monospace_text(cert.subject_key_id().to_string())
                                 ],
                                 row![
-                                    text("Authority-Key-Id: ").width(200),
-                                    text(cert.authority_key_id().to_string())
+                                    text("Authority-Key-Id: ").width(160),
+                                    monospace_text(cert.authority_key_id().to_string())
                                 ],
                                 if cert.dns_names().is_empty() {
                                     row![]
                                 } else {
                                     row![
-                                        text("DNS-Names: ").width(200),
+                                        text("DNS-Names: ").width(160),
                                         text(cert.dns_names().join(", "))
                                     ]
                                 },
                             ]
-                                .spacing(2),
+                            .spacing(2),
                         )
-                            .padding(8)
-                            .style(|_| container::Style {
-                                background: Some(Background::Color(Color::WHITE)),
-                                ..container::Style::default()
-                            })
-                            .width(Length::Fill),
+                        .padding(8)
+                        .style(|_| container::Style {
+                            background: Some(Background::Color(Color::WHITE)),
+                            ..container::Style::default()
+                        })
+                        .width(Length::Fill),
                     )
                 }
             };
@@ -623,10 +627,10 @@ impl Ui {
                         .center_x(160)
                         .center_y(40),
                 ]
-                    .spacing(4),
+                .spacing(4),
             )
-                .center_x(160)
-                .center_y(80)
+            .center_x(160)
+            .center_y(80)
         };
 
         column![
@@ -828,7 +832,7 @@ async fn pick_file() -> Result<PathBuf, Error> {
 async fn export_file() -> Result<PathBuf, Error> {
     let path = rfd::AsyncFileDialog::new()
         .set_title("Export file...")
-        .add_filter("PEM-File", &["pem", "crt"])
+        .add_filter("PEM-File", &["crt", "pem"])
         .save_file()
         .await
         .ok_or(Error::Undefined)?;
