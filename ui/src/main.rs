@@ -417,14 +417,14 @@ impl Ui {
                                         text(cert.not_before().to_string())
                                     } else {
                                         text(cert.not_before().to_string())
-                                            .color(Color::parse("#aa0000").unwrap())
+                                            .color(color!(0xaa0000))
                                     },
                                     text(" bis "),
                                     if cert.is_valid_not_after(&SystemTime::now()) {
                                         text(cert.not_after().to_string())
                                     } else {
                                         text(cert.not_after().to_string())
-                                            .color(Color::parse("#aa0000").unwrap())
+                                            .color(color!(0xaa0000))
                                     }
                                 ],
                                 row![
@@ -483,7 +483,7 @@ impl Ui {
             let content = Container::new(result.spacing(4))
                 .padding(4)
                 .style(|_| container::Style {
-                    background: Some(Background::Color(Color::parse("#eeeeee").unwrap())),
+                    background: Some(Background::Color(color!(0xeeeeee))),
                     ..container::Style::default()
                 })
                 .width(Length::Fill);
@@ -497,7 +497,7 @@ impl Ui {
                 if chain.has_missing_tail() {
                     column![
                             Container::new(text("Last Certificate points to another one that should be contained in chain.")).style(|_| container::Style {
-                            background: Some(Background::Color(Color::parse("#eeaa00").unwrap())),
+                            background: Some(Background::Color(color!(0xeeaa00))),
                             text_color: Some(Color::WHITE),
                             ..container::Style::default()
                         }).padding(2).width(Length::Fill),
@@ -515,7 +515,7 @@ impl Ui {
                 if chain.is_valid() {
                     column![Container::new(text("Chain is valid"))
                         .style(|_| container::Style {
-                            background: Some(Background::Color(Color::parse("#00aa00").unwrap())),
+                            background: Some(Background::Color(color!(0x00aa00))),
                             text_color: Some(Color::WHITE),
                             ..container::Style::default()
                         })
@@ -526,7 +526,7 @@ impl Ui {
                         "Chain or some of its parts is not valid (anymore)"
                     ))
                     .style(|_| container::Style {
-                        background: Some(Background::Color(Color::parse("#aa0000").unwrap())),
+                        background: Some(Background::Color(color!(0xaa0000))),
                         text_color: Some(Color::WHITE),
                         ..container::Style::default()
                     })
