@@ -2,10 +2,11 @@
 
 use cert_tools::{Chain, PrivateKey};
 use iced::border::Radius;
+use iced::widget::text::Shaping;
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
-    Container, Scrollable,
+    text_input, Container, Scrollable,
 };
 use iced::{
     alignment, application, clipboard, color, Background, Border, Color, Element, Font, Length,
@@ -239,32 +240,39 @@ impl Ui {
     }
 
     fn view(&self) -> Element<Message> {
-        fn grey_style() -> text::Style {
-            text::Style {
-                color: Some(color!(0x888888)),
-            }
-        }
+        fn filename_text<'a>(
+            placeholder: &'a str,
+            file: &'a File,
+        ) -> text_input::TextInput<'a, Message> {
+            let text = match file {
+                File::Invalid(ref file)
+                | File::Certificates(ref file, _)
+                | File::PrivateKey(ref file, _) => file.display().to_string(),
+                _ => String::new(),
+            };
 
-        fn red_style() -> text::Style {
-            text::Style {
-                color: Some(color!(0xaa0000)),
+            match file {
+                File::Certificates(_, _) | File::PrivateKey(_, _) => text_input(placeholder, &text),
+                File::Invalid(_) => text_input(placeholder, &text),
+                _ => text_input(placeholder, &text),
             }
+                .width(Length::Fill)
+                .style(move |theme, status| text_input::Style {
+                    background: Background::Color(Color::WHITE),
+                    placeholder: color!(0x888888),
+                    value: match file {
+                        File::Certificates(_, _) | File::PrivateKey(_, _) => Color::BLACK,
+                        File::Invalid(_) => color!(0xaa0000),
+                        File::None => color!(0x888888),
+                    },
+                    ..text_input::default(theme, status)
+                })
         }
 
         let cert_file_input = {
             row![
                 text("Certificate: ").width(100),
-                text(match self.cert_file {
-                    File::Invalid(ref file) | File::Certificates(ref file, _) =>
-                        file.display().to_string(),
-                    _ => "No certificate file".to_string(),
-                })
-                .style(|_| match self.cert_file {
-                    File::Certificates(_, _) => text::Style::default(),
-                    File::Invalid(_) => red_style(),
-                    _ => grey_style(),
-                }),
-                horizontal_space(),
+                filename_text("No certificate file", &self.cert_file),
                 if self.cert_file.is_some() {
                     button("x")
                         .on_press(Message::ClearCertFile)
@@ -283,17 +291,7 @@ impl Ui {
         let ca_file_input = {
             row![
                 text("CA: ").width(100),
-                text(match self.ca_file {
-                    File::Invalid(ref file) | File::Certificates(ref file, _) =>
-                        file.display().to_string(),
-                    _ => "No CA file".to_string(),
-                })
-                .style(|_| match self.ca_file {
-                    File::Certificates(_, _) => text::Style::default(),
-                    File::Invalid(_) => red_style(),
-                    _ => grey_style(),
-                }),
-                horizontal_space(),
+                filename_text("No CA file", &self.ca_file),
                 if self.ca_file.is_some() {
                     button("x")
                         .on_press(Message::ClearCaFile)
@@ -316,17 +314,7 @@ impl Ui {
         let key_file_input = {
             row![
                 text("Key: ").width(100),
-                text(match self.key_file {
-                    File::Invalid(ref file) | File::PrivateKey(ref file, _) =>
-                        file.display().to_string(),
-                    _ => "No key file".to_string(),
-                })
-                .style(|_| match self.key_file {
-                    File::PrivateKey(_, _) => text::Style::default(),
-                    File::Invalid(_) => red_style(),
-                    _ => grey_style(),
-                }),
-                horizontal_space(),
+                filename_text("No key file", &self.key_file),
                 if self.key_file.is_some() {
                     button("x")
                         .on_press(Message::ClearKeyFile)
