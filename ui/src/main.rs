@@ -432,7 +432,7 @@ impl Ui {
                         .size(12)
                 }
 
-                for cert in chain.certs() {
+                for (idx, cert) in chain.certs().iter().enumerate() {
                     result = result.push(
                         Container::new(
                             column![
@@ -480,11 +480,23 @@ impl Ui {
                                 .align_y(alignment::Vertical::Center),
                                 row![
                                     text("Subject-Key-Id: ").width(160),
-                                    monospace_text(cert.subject_key_id().to_string())
+                                    monospace_text(cert.subject_key_id().to_string()),
+                                    text("  "),
+                                    if idx == 0 {
+                                        container(text(""))
+                                    } else {
+                                        container(text(format!("{}", idx)).size(10)).padding(1).center_x(24).center_y(14).style(move |_| self.get_cert_key_number_style(idx as u8 - 1, false))
+                                    }
                                 ],
                                 row![
                                     text("Authority-Key-Id: ").width(160),
-                                    monospace_text(cert.authority_key_id().to_string())
+                                    monospace_text(cert.authority_key_id().to_string()),
+                                    text("  "),
+                                    if idx >= chain.certs().len() - 1 {
+                                        container(text(""))
+                                    } else {
+                                        container(text(format!("{}", idx+1)).size(10)).padding(1).center_x(24).center_y(14).style(move |_| self.get_cert_key_number_style(idx as u8, true))
+                                    }
                                 ],
                                 if cert.dns_names().is_empty() {
                                     row![]
@@ -807,6 +819,58 @@ Authority-Key-Id:    {}
             }
         }
         IndicatorState::Unknown
+    }
+
+    fn wrong_chain_certificate_indexes(&self) -> Vec<u8> {
+        if let Some(chain) = &self.chain {
+            let authority_key_ids = chain.certs().iter()
+                .map(|cert| cert.authority_key_id().to_string())
+                .collect::<Vec<_>>();
+
+            let x = chain.certs()[1..].iter()
+                .map(|cert| cert.subject_key_id().to_string())
+                .enumerate()
+                .filter_map(|(idx, key_id)| {
+                    if authority_key_ids.get(idx) == Some(&key_id) {
+                        None
+                    } else {
+                        Some(idx as u8)
+                    }
+                }).collect::<Vec<_>>();
+            return x;
+        }
+        vec![]
+    }
+
+    fn get_cert_key_number_style(&self, idx: u8, fill: bool) -> container::Style {
+        let background = if self.wrong_chain_certificate_indexes().contains(&idx) {
+            color!(0xaa0000, 0.2)
+        } else {
+            color!(0x00aa00, 0.2)
+        };
+
+        let background = if !fill {
+            Color::WHITE
+        } else {
+            background
+        };
+
+        let color = if self.wrong_chain_certificate_indexes().contains(&idx) {
+            color!(0xaa0000)
+        } else {
+            color!(0x00aa00)
+        };
+
+        container::Style {
+            background: Some(Background::Color(background)),
+            text_color: Some(color),
+            border: Border {
+                color,
+                width: 1.0,
+                radius: Radius::from(4),
+            },
+            ..container::Style::default()
+        }
     }
 }
 
