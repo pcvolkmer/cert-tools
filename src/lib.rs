@@ -16,18 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-use std::cmp::Ordering;
+
+use itertools::Itertools;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, PKeyRef, Public};
 use openssl::x509::X509;
+use std::cmp::Ordering;
 use std::fmt::Display;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use itertools::Itertools;
 
 pub fn hex_encode<T: AsRef<[u8]>>(s: T) -> String {
     s.as_ref()

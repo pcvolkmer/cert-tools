@@ -1,3 +1,22 @@
+/*
+ * This file is part of cert-tools
+ *
+ * Copyright (C) 2025 the original author or authors.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #![windows_subsystem = "windows"]
 
 use cert_tools::{Chain, PrivateKey};
@@ -7,9 +26,10 @@ use iced::widget::{
     self, button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     text_input, Container, Scrollable,
 };
+use iced::window::icon;
 use iced::{
-    alignment, application, clipboard, color, Background, Border, Color, Element, Font, Length,
-    Pixels, Settings, Size, Task,
+    alignment, application, clipboard, color, window, Background, Border, Color, Element, Font,
+    Length, Pixels, Settings, Size, Task,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -20,6 +40,13 @@ fn main() -> iced::Result {
         .settings(Settings {
             default_text_size: Pixels::from(13),
             ..Settings::default()
+        })
+        .window(window::Settings {
+            icon: match image::load_from_memory(include_bytes!("../../resources/icon.ico")) {
+                Ok(image) => icon::from_rgba(image.as_bytes().to_vec(), 128, 128).ok(),
+                _ => None,
+            },
+            ..window::Settings::default()
         })
         .resizable(false)
         .window_size(Size::new(1020.0, 800.0))

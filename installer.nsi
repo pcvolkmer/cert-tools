@@ -2,6 +2,7 @@
 
 !define APP_NAME "Cert Tools"
 !define APP_EXE "cert-tools-ui.exe"
+!define MUI_ICON "resources\icon.ico"
 !define UNINSTALLER_EXE "uninstaller.exe"
 !define INSTALL_DIR "$LocalAppData\Programs\${APP_NAME}"
 
