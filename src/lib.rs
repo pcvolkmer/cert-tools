@@ -317,7 +317,11 @@ impl Chain {
     pub fn is_valid(&self) -> bool {
         let mut x: Option<PKey<Public>> = None;
         let mut time_issue = false;
-        for cert in self.certs.iter().rev() {
+
+        for (idx, cert) in self.certs.iter().rev().enumerate() {
+            if cert.authority_key_id().to_string() == "*Empty*" && idx > 0 {
+                return false;
+            }
             if !cert.within_timerange(&SystemTime::now()) {
                 time_issue = true;
             }
