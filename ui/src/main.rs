@@ -26,7 +26,6 @@ use iced::widget::{
     self, button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     text_input, Container, Scrollable,
 };
-use iced::window::icon;
 use iced::{
     alignment, application, clipboard, color, window, Background, Border, Color, Element, Font,
     Length, Pixels, Settings, Size, Task,
@@ -42,10 +41,7 @@ fn main() -> iced::Result {
             ..Settings::default()
         })
         .window(window::Settings {
-            icon: match image::load_from_memory(include_bytes!("../../resources/icon.ico")) {
-                Ok(image) => icon::from_rgba(image.as_bytes().to_vec(), 128, 128).ok(),
-                _ => None,
-            },
+            icon: window::icon::from_file_data(include_bytes!("../../resources/icon.ico"), None).ok(),
             ..window::Settings::default()
         })
         .resizable(false)
