@@ -1,10 +1,10 @@
 [package]
 name = "cert-tools-ui"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-cert-tools = { path = "..", version = "*" }
+cert-tools = { path = ".." }
 iced = { version = "0.13", features = ["wgpu", "tiny-skia", "tokio", "web-colors", "image"], default-features = false }
 rfd = "0.15"
 itertools = "0.14"
