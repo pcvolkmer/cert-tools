@@ -2,18 +2,26 @@ ifndef VERBOSE
 .SILENT:
 endif
 
-TAG = `git describe --tag 2>/dev/null`
+GITTAG = $(shell git describe --tag --abbrev=0 2>/dev/null | sed -En 's/v(.*)$$/\1/p')
+ifeq ($(findstring -, $(GITTAG)), -)
+    GITDEV = $(shell git describe --tag 2>/dev/null | sed -En 's/v(.*)-([0-9]+)-g([0-9a-f]+)$$/.dev.\2+\3/p')
+else
+    GITDEV = $(shell git describe --tag 2>/dev/null | sed -En 's/v(.*)-([0-9]+)-g([0-9a-f]+)$$/-dev.\2+\3/p')
+endif
+VERSION := "$(GITTAG)$(GITDEV)"
 
-REV = git`git rev-parse HEAD | cut -c1-7`
-
-NAME = cert-tools
+NAME := cert-tools
 
 package-all: win-installer win-package linux-package
+
+.PHONY: version
+version:
+	echo $(VERSION)
 
 .PHONY: win-installer
 win-installer: win-binary-x86_64
 	makensis installer.nsi
-	mv target/$(NAME)-installer.exe target/$(NAME)-installer-$(TAG).exe || ren target/$(NAME)-installer.exe target/$(NAME)-installer-$(TAG).exe
+	mv target/$(NAME)-installer.exe target/$(NAME)-installer-$(VERSION).exe || ren target/$(NAME)-installer.exe target/$(NAME)-installer-$(VERSION).exe
 
 .PHONY: win-package
 win-package: win-binary-x86_64
@@ -22,7 +30,7 @@ win-package: win-binary-x86_64
 	cp target/x86_64-pc-windows-gnu/release/cert-tools-ui.exe $(NAME)/
 	cp LICENSE $(NAME)/
 	# first try (linux) zip command, then powershell sub command to create ZIP file
-	zip target/$(NAME)-$(TAG)_win64.zip $(NAME)/* || powershell Compress-ARCHIVE $(NAME) target\$(NAME)-$(TAG)_win64.zip
+	zip target/$(NAME)-$(VERSION)_win64.zip $(NAME)/* || powershell Compress-ARCHIVE $(NAME) target\$(NAME)-$(VERSION)_win64.zip
 	rm -rf $(NAME) || true
 
 .PHONY: linux-package
@@ -31,7 +39,7 @@ linux-package: linux-binary-x86_64
 	cp target/x86_64-unknown-linux-gnu/release/cert-tools $(NAME)/
 	cp target/x86_64-unknown-linux-gnu/release/cert-tools-ui $(NAME)/
 	cp LICENSE $(NAME)/
-	tar -czvf target/$(NAME)-$(TAG)_linux.tar.gz $(NAME)/
+	tar -czvf target/$(NAME)-$(VERSION)_linux.tar.gz $(NAME)/
 	rm -rf $(NAME) || true
 
 binary-all: win-binary-x86_64 linux-binary-x86_64
