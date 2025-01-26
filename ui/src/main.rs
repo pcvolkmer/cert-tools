@@ -436,7 +436,27 @@ impl Ui {
                     result = result.push(
                         Container::new(
                             column![
-                                text(cert.name().to_string()).size(18),
+                                row![
+                                    text(cert.name().to_string()).size(18),
+                                    text("").width(16),
+                                    if cert.is_ca() {
+                                        container(text("CA").color(color!(0x0088ff)))
+                                            .padding(4)
+                                            .style(|_| container::Style {
+                                                background: Some(Background::from(color!(
+                                                    0x0088ff, 0.2
+                                                ))),
+                                                border: Border {
+                                                    width: 1.0,
+                                                    radius: Radius::from(4),
+                                                    color: color!(0x0088ff),
+                                                },
+                                                ..container::Style::default()
+                                            })
+                                    } else {
+                                        container(text(""))
+                                    }
+                                ],
                                 horizontal_rule(1),
                                 row![text("Issuer: ").width(160), text(cert.issuer().to_string())],
                                 row![
