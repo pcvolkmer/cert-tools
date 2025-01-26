@@ -21,6 +21,7 @@ use itertools::Itertools;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
+use openssl::pkcs7::Pkcs7;
 use openssl::pkey::{PKey, PKeyRef, Public};
 use openssl::x509::X509;
 use std::cmp::Ordering;
@@ -265,9 +266,32 @@ pub struct Chain {
 impl Chain {
     pub fn read(path: &Path) -> Result<Self, String> {
         let file = fs::read(path).map_err(|err| err.to_string())?;
-        let certs = X509::stack_from_pem(&file).map_err(|err| err.to_string())?;
 
-        let certs = certs.iter().map(Certificate::from_x509).collect::<Vec<_>>();
+        let certs = if file.starts_with("-----BEGIN CERTIFICATE-----".as_bytes()) {
+            let certs = X509::stack_from_pem(&file).map_err(|err| err.to_string())?;
+            certs.iter().map(Certificate::from_x509).collect::<Vec<_>>()
+        } else if file.starts_with("-----BEGIN PKCS7-----".as_bytes()) {
+            let pkcs7 = Pkcs7::from_pem(&file).map_err(|err| err.to_string())?;
+            if let Some(signed) = pkcs7.signed() {
+                signed
+                    .certificates()
+                    .iter()
+                    .flat_map(|stack_ref| {
+                        stack_ref.iter().map(|x509_ref| {
+                            let pem = x509_ref.to_pem().unwrap_or_else(|_| "".as_bytes().to_vec());
+                            match X509::from_pem(pem.as_slice()) {
+                                Ok(cert) => Certificate::from_x509(&cert),
+                                Err(_) => Err(String::from("Invalid PEM")),
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                vec![]
+            }
+        } else {
+            return Err("Not a parsable file".to_string());
+        };
 
         if certs.iter().filter(|item| item.is_err()).count() > 0 {
             return Err("Certificate chain contains invalid certificate".to_string());
