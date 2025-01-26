@@ -101,7 +101,7 @@ impl Ui {
     }
 
     fn title(&self) -> String {
-        "CertTools".into()
+        "Cert Tools".into()
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
@@ -683,7 +683,11 @@ impl Ui {
                 UiMode::Output => column![output],
             },
             horizontal_rule(1),
-            text(&self.status)
+            row![
+                text(&self.status),
+                horizontal_space(),
+                text(format!("Version {}", env!("CARGO_PKG_VERSION"))).style(|_| text::Style { color: Some(color!(0x888888)) }),
+            ]
         ]
         .padding(4)
         .spacing(2)
