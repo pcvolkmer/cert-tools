@@ -47,7 +47,7 @@ fn asn1time(time: &SystemTime) -> Asn1Time {
             .expect("time not went backwards")
             .as_secs() as i64,
     )
-    .unwrap()
+        .unwrap()
 }
 
 #[derive(PartialEq)]

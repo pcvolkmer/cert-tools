@@ -278,17 +278,17 @@ impl Ui {
                 File::Invalid(_) => text_input(placeholder, &text),
                 _ => text_input(placeholder, &text),
             }
-            .width(Length::Fill)
-            .style(move |theme, status| text_input::Style {
-                background: Background::Color(Color::WHITE),
-                placeholder: color!(0x888888),
-                value: match file {
-                    File::Certificates(_, _) | File::PrivateKey(_, _) => Color::BLACK,
-                    File::Invalid(_) => color!(0xaa0000),
-                    File::None => color!(0x888888),
-                },
-                ..text_input::default(theme, status)
-            })
+                .width(Length::Fill)
+                .style(move |theme, status| text_input::Style {
+                    background: Background::Color(Color::WHITE),
+                    placeholder: color!(0x888888),
+                    value: match file {
+                        File::Certificates(_, _) | File::PrivateKey(_, _) => Color::BLACK,
+                        File::Invalid(_) => color!(0xaa0000),
+                        File::None => color!(0x888888),
+                    },
+                    ..text_input::default(theme, status)
+                })
         }
 
         let cert_file_input = {
@@ -306,8 +306,8 @@ impl Ui {
                     .on_press(Message::PickCertFile)
                     .style(button::secondary)
             ]
-            .spacing(2)
-            .align_y(alignment::Vertical::Center)
+                .spacing(2)
+                .align_y(alignment::Vertical::Center)
         };
 
         let ca_file_input = {
@@ -329,8 +329,8 @@ impl Ui {
                     button("..").style(button::secondary)
                 }
             ]
-            .spacing(2)
-            .align_y(alignment::Vertical::Center)
+                .spacing(2)
+                .align_y(alignment::Vertical::Center)
         };
 
         let key_file_input = {
@@ -352,8 +352,8 @@ impl Ui {
                     button("..").style(button::secondary)
                 }
             ]
-            .spacing(2)
-            .align_y(alignment::Vertical::Center)
+                .spacing(2)
+                .align_y(alignment::Vertical::Center)
         };
 
         let export_button = if !(self.chain_indicator_state == IndicatorState::Success
@@ -406,7 +406,7 @@ impl Ui {
                 horizontal_space(),
             ]
         }
-        .spacing(2);
+            .spacing(2);
 
         let output = {
             Scrollable::new(
@@ -418,7 +418,7 @@ impl Ui {
                     })
                     .font(Font::MONOSPACE),
             )
-            .height(Length::Fill)
+                .height(Length::Fill)
         };
 
         let certs = {
@@ -527,14 +527,14 @@ impl Ui {
                                     ]
                                 },
                             ]
-                            .spacing(2),
+                                .spacing(2),
                         )
-                        .padding(8)
-                        .style(|_| container::Style {
-                            background: Some(Background::Color(Color::WHITE)),
-                            ..container::Style::default()
-                        })
-                        .width(Length::Fill),
+                            .padding(8)
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(Color::WHITE)),
+                                ..container::Style::default()
+                            })
+                            .width(Length::Fill),
                     )
                 }
             };
@@ -682,10 +682,10 @@ impl Ui {
                         .center_x(160)
                         .center_y(40),
                 ]
-                .spacing(4),
+                    .spacing(4),
             )
-            .center_x(160)
-            .center_y(80)
+                .center_x(160)
+                .center_y(80)
         };
 
         column![
@@ -709,9 +709,9 @@ impl Ui {
                 text(format!("Version {}", env!("CARGO_PKG_VERSION"))).style(|_| text::Style { color: Some(color!(0x888888)) }),
             ]
         ]
-        .padding(4)
-        .spacing(2)
-        .into()
+            .padding(4)
+            .spacing(2)
+            .into()
     }
 
     fn print_output(&self) -> Result<String, String> {

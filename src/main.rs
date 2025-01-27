@@ -97,7 +97,7 @@ fn main() -> Result<(), ()> {
             Ok(pem) => {
                 println!("{pem}");
                 eprintln!("{}", style("success").green());
-            },
+            }
             Err(err) => eprintln!("{}", style(err).red()),
         }
     }
