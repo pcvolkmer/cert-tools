@@ -10,13 +10,13 @@ authors = ["Paul-Christian Volkmer"]
 members = ["ui"]
 
 [dependencies]
-openssl = { version = "0.10" }
+openssl = { version = "0.10", features = ["vendored"] }
 clap = { version = "4.5", features = ["std", "help", "usage", "derive", "error-context"], default-features = false }
 console = "0.15"
 itertools = "0.14"
 
-[target.'cfg(windows)'.dependencies]
-openssl-sys = { version = "0.9", features = ["vendored"] }
+#[target.'cfg(windows)'.dependencies]
+#openssl-sys = { version = "0.9", features = ["vendored"] }
 
 [profile.release]
 opt-level = "s"
