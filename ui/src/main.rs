@@ -105,6 +105,16 @@ impl Ui {
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
+        fn fixed_chain(chain: &Option<Chain>) -> Option<Chain> {
+            match chain {
+                Some(chain) => match Chain::create_fixed(chain.certs()) {
+                    Ok(chain) => Some(chain),
+                    _ => None,
+                },
+                _ => None,
+            }
+        }
+
         self.mode = UiMode::CertList;
         match message {
             Message::PickCertFile => Task::perform(pick_file(), Message::SetCertFile),
@@ -126,13 +136,7 @@ impl Ui {
                     Ok(chain) => Some(chain),
                     _ => None,
                 };
-                self.fixed_chain = match &self.chain {
-                    Some(chain) => match Chain::create_fixed(chain.certs()) {
-                        Ok(chain) => Some(chain),
-                        _ => None,
-                    },
-                    _ => None,
-                };
+                self.fixed_chain = fixed_chain(&self.chain);
                 self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
             }
@@ -152,13 +156,7 @@ impl Ui {
                             Ok(chain) => Some(chain),
                             _ => None,
                         };
-                        self.fixed_chain = match &self.chain {
-                            Some(chain) => match Chain::create_fixed(chain.certs()) {
-                                Ok(chain) => Some(chain),
-                                _ => None,
-                            },
-                            _ => None,
-                        };
+                        self.fixed_chain = fixed_chain(&self.chain);
                         self.output = Content::default();
                         self.mode = UiMode::CertList;
                     }
@@ -178,13 +176,7 @@ impl Ui {
                             Ok(chain) => Some(chain),
                             _ => None,
                         };
-                        self.fixed_chain = match &self.chain {
-                            Some(chain) => match Chain::create_fixed(chain.certs()) {
-                                Ok(chain) => Some(chain),
-                                _ => None,
-                            },
-                            _ => None,
-                        };
+                        self.fixed_chain = fixed_chain(&self.chain);
                         self.output = Content::default();
                     }
                     _ => self.ca_file = File::None,
@@ -205,26 +197,12 @@ impl Ui {
                 self.key_indicator_state = self.key_indicator_state();
                 Task::done(Message::Print)
             }
-            Message::Print => {
+            Message::Print | Message::PrintPem => {
                 match self.print_output() {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
                         self.status = String::new();
                         self.mode = UiMode::CertList;
-                    }
-                    Err(err) => {
-                        self.output = Content::default();
-                        self.status = err
-                    }
-                };
-                Task::none()
-            }
-            Message::PrintPem => {
-                match self.pem_output() {
-                    Ok(output) => {
-                        self.output = Content::with_text(output.as_str());
-                        self.status = String::new();
-                        self.mode = UiMode::Output;
                     }
                     Err(err) => {
                         self.output = Content::default();
