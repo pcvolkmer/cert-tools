@@ -237,10 +237,7 @@ impl Certificate {
     #[allow(dead_code)]
     pub fn to_text(&self) -> Option<String> {
         match self.cert.to_text() {
-            Ok(text) => match String::from_utf8(text) {
-                Ok(value) => Some(value),
-                _ => None,
-            },
+            Ok(text) => String::from_utf8(text).ok(),
             _ => None,
         }
     }
@@ -354,10 +351,7 @@ impl Chain {
                     return false;
                 }
             }
-            x = match cert.public_key() {
-                Ok(public_key) => Some(public_key),
-                Err(()) => None,
-            }
+            x = cert.public_key().ok();
         }
         !time_issue && !self.certs.is_empty()
     }
