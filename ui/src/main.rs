@@ -197,12 +197,26 @@ impl Ui {
                 self.key_indicator_state = self.key_indicator_state();
                 Task::done(Message::Print)
             }
-            Message::Print | Message::PrintPem => {
+            Message::Print => {
                 match self.print_output() {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
                         self.status = String::new();
                         self.mode = UiMode::CertList;
+                    }
+                    Err(err) => {
+                        self.output = Content::default();
+                        self.status = err
+                    }
+                };
+                Task::none()
+            }
+            Message::PrintPem => {
+                match self.pem_output() {
+                    Ok(output) => {
+                        self.output = Content::with_text(output.as_str());
+                        self.status = String::new();
+                        self.mode = UiMode::Output;
                     }
                     Err(err) => {
                         self.output = Content::default();
