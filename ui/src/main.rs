@@ -19,7 +19,7 @@
 
 #![windows_subsystem = "windows"]
 
-use cert_tools::{Chain, PrivateKey};
+use cert_tools::{save_p12_file, Chain, PrivateKey};
 use iced::border::Radius;
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
@@ -41,7 +41,8 @@ fn main() -> iced::Result {
             ..Settings::default()
         })
         .window(window::Settings {
-            icon: window::icon::from_file_data(include_bytes!("../../resources/icon.ico"), None).ok(),
+            icon: window::icon::from_file_data(include_bytes!("../../resources/icon.ico"), None)
+                .ok(),
             ..window::Settings::default()
         })
         .resizable(false)
@@ -65,6 +66,7 @@ impl File {
 enum UiMode {
     CertList,
     Output,
+    Passphrase,
 }
 
 struct Ui {
@@ -79,6 +81,9 @@ struct Ui {
     status: String,
     chain_indicator_state: IndicatorState,
     key_indicator_state: IndicatorState,
+
+    password_1: String,
+    password_2: String,
 }
 
 impl Ui {
@@ -95,6 +100,8 @@ impl Ui {
                 status: String::new(),
                 chain_indicator_state: IndicatorState::Unknown,
                 key_indicator_state: IndicatorState::Unknown,
+                password_1: String::new(),
+                password_2: String::new(),
             },
             Task::none(),
         )
@@ -250,6 +257,55 @@ impl Ui {
                 }
                 Task::none()
             }
+            Message::AskForPassword => {
+                self.mode = UiMode::Passphrase;
+                Task::none()
+            }
+            Message::PickExportP12File => {
+                Task::perform(export_p12_file(), Message::ExportToP12File)
+            }
+            Message::ExportToP12File(file) => {
+                let private_key = match &self.key_file {
+                    File::PrivateKey(_, key) => Some(key.as_ref().clone()),
+                    _ => None,
+                };
+                match &self.chain {
+                    None => {}
+                    Some(ref chain) => match file {
+                        Ok(file) => {
+                            match save_p12_file(&file, chain.certs(), &self.password_1, private_key)
+                            {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    self.status = format!("{:?}", err);
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            self.status = format!("{:?}", err);
+                        }
+                    },
+                };
+                self.password_1 = String::new();
+                self.password_2 = String::new();
+                Task::none()
+            }
+            Message::SetPw1(pw) => {
+                self.mode = UiMode::Passphrase;
+                self.password_1 = pw.clone();
+                Task::none()
+            }
+            Message::SetPw2(pw) => {
+                self.mode = UiMode::Passphrase;
+                self.password_2 = pw.clone();
+                Task::none()
+            }
+            Message::Abort => {
+                self.mode = UiMode::CertList;
+                self.password_1 = String::new();
+                self.password_2 = String::new();
+                Task::none()
+            }
         }
     }
 
@@ -357,6 +413,15 @@ impl Ui {
                 .on_press(Message::PickExportFile)
                 .style(button::primary)
         };
+        let export_p12_button = if (self.chain_indicator_state == IndicatorState::Success
+            || self.chain_indicator_state == IndicatorState::Cleaned) && self.key_indicator_state == IndicatorState::Success
+        {
+            button("Export PKCS #12")
+                .on_press(Message::AskForPassword)
+                .style(button::primary)
+        } else {
+            button("Export PKCS #12").style(button::primary)
+        };
         let clip_button = if self.output.text().trim().is_empty() {
             button("Copy to Clipboard").style(button::secondary)
         } else {
@@ -382,6 +447,7 @@ impl Ui {
                     .on_press(Message::PrintPem)
                     .style(button::primary),
                 export_button,
+                export_p12_button,
                 text(" "),
                 clip_button,
                 cleanup_button,
@@ -392,6 +458,7 @@ impl Ui {
                 button("Print information").style(button::primary),
                 button("Print PEM").style(button::primary),
                 export_button,
+                export_p12_button,
                 text(" "),
                 clip_button,
                 cleanup_button,
@@ -497,7 +564,13 @@ impl Ui {
                                     if idx == 0 {
                                         container(text(""))
                                     } else {
-                                        container(text(format!("{}", idx)).size(10)).padding(1).center_x(24).center_y(14).style(move |_| self.get_cert_key_number_style(idx as u8 - 1, false))
+                                        container(text(format!("{}", idx)).size(10))
+                                            .padding(1)
+                                            .center_x(24)
+                                            .center_y(14)
+                                            .style(move |_| {
+                                                self.get_cert_key_number_style(idx as u8 - 1, false)
+                                            })
                                     }
                                 ],
                                 row![
@@ -507,7 +580,13 @@ impl Ui {
                                     if idx >= chain.certs().len() - 1 {
                                         container(text(""))
                                     } else {
-                                        container(text(format!("{}", idx+1)).size(10)).padding(1).center_x(24).center_y(14).style(move |_| self.get_cert_key_number_style(idx as u8, true))
+                                        container(text(format!("{}", idx + 1)).size(10))
+                                            .padding(1)
+                                            .center_x(24)
+                                            .center_y(14)
+                                            .style(move |_| {
+                                                self.get_cert_key_number_style(idx as u8, true)
+                                            })
                                     }
                                 ],
                                 if cert.dns_names().is_empty() {
@@ -680,6 +759,32 @@ impl Ui {
                 .center_y(80)
         };
 
+        let ask_for_password = {
+            let ok_button = if !self.password_1.is_empty() && self.password_1 == self.password_2 {
+                button("OK").on_press(Message::PickExportP12File)
+            } else {
+                button("OK")
+            };
+            row![container(
+                column![
+                    text("Bitte Passwort für den Export eingeben"),
+                    text_input("", &self.password_1)
+                        .secure(true)
+                        .on_input(|t| Message::SetPw1(t)),
+                    text_input("", &self.password_2)
+                        .secure(true)
+                        .on_input(|t| Message::SetPw2(t)),
+                    row![ok_button, button("Cancel").on_press(Message::Abort)].spacing(4),
+                ]
+                .spacing(4)
+                .height(Length::Fill)
+                .width(320),
+            )
+            .center_x(320)]
+                .height(Length::Fill)
+                .width(Length::Fill)
+        };
+
         column![
             row![
                 container(column![cert_file_input, ca_file_input, key_file_input].spacing(2))
@@ -693,12 +798,15 @@ impl Ui {
             match self.mode {
                 UiMode::CertList => column![certs, chain_info],
                 UiMode::Output => column![output],
+                UiMode::Passphrase => column![ask_for_password],
             },
             horizontal_rule(1),
             row![
                 text(&self.status),
                 horizontal_space(),
-                text(format!("Version {}", env!("CARGO_PKG_VERSION"))).style(|_| text::Style { color: Some(color!(0x888888)) }),
+                text(format!("Version {}", env!("CARGO_PKG_VERSION"))).style(|_| text::Style {
+                    color: Some(color!(0x888888))
+                }),
             ]
         ]
             .padding(4)
@@ -839,11 +947,14 @@ Authority-Key-Id:    {}
 
     fn wrong_chain_certificate_indexes(&self) -> Vec<u8> {
         if let Some(chain) = &self.chain {
-            let authority_key_ids = chain.certs().iter()
+            let authority_key_ids = chain
+                .certs()
+                .iter()
                 .map(|cert| cert.authority_key_id().to_string())
                 .collect::<Vec<_>>();
 
-            let x = chain.certs()[1..].iter()
+            let x = chain.certs()[1..]
+                .iter()
                 .map(|cert| cert.subject_key_id().to_string())
                 .enumerate()
                 .filter_map(|(idx, key_id)| {
@@ -852,7 +963,8 @@ Authority-Key-Id:    {}
                     } else {
                         Some(idx as u8)
                     }
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             return x;
         }
         vec![]
@@ -865,11 +977,7 @@ Authority-Key-Id:    {}
             color!(0x00aa00, 0.2)
         };
 
-        let background = if !fill {
-            Color::WHITE
-        } else {
-            background
-        };
+        let background = if !fill { Color::WHITE } else { background };
 
         let color = if self.wrong_chain_certificate_indexes().contains(&idx) {
             color!(0xaa0000)
@@ -907,6 +1015,12 @@ enum Message {
     Cleanup,
     PickExportFile,
     ExportToFile(Result<PathBuf, Error>),
+    PickExportP12File,
+    ExportToP12File(Result<PathBuf, Error>),
+    AskForPassword,
+    SetPw1(String),
+    SetPw2(String),
+    Abort,
 }
 
 #[derive(Debug, Clone)]
@@ -936,6 +1050,17 @@ async fn export_file() -> Result<PathBuf, Error> {
     let path = rfd::AsyncFileDialog::new()
         .set_title("Export file...")
         .add_filter("PEM-File", &["crt", "pem"])
+        .save_file()
+        .await
+        .ok_or(Error::Undefined)?;
+
+    Ok(path.into())
+}
+
+async fn export_p12_file() -> Result<PathBuf, Error> {
+    let path = rfd::AsyncFileDialog::new()
+        .set_title("Export file...")
+        .add_filter("PKCS#12-File", &["p12", "pfx"])
         .save_file()
         .await
         .ok_or(Error::Undefined)?;

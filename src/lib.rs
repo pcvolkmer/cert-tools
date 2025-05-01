@@ -21,8 +21,11 @@ use itertools::Itertools;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
+use openssl::pkcs12::Pkcs12;
 use openssl::pkcs7::Pkcs7;
-use openssl::pkey::{PKey, PKeyRef, Public};
+use openssl::pkey::{PKey, PKeyRef, Private, Public};
+use openssl::rsa::Rsa;
+use openssl::stack::Stack;
 use openssl::x509::X509;
 use std::cmp::Ordering;
 use std::fmt::Display;
@@ -50,7 +53,76 @@ fn asn1time(time: &SystemTime) -> Asn1Time {
         .unwrap()
 }
 
-#[derive(PartialEq)]
+pub fn save_p12_file(path: &Path, password: &str, certs: &Vec<Certificate>, private_key: Option<PrivateKey>) -> Result<(), String> {
+    if certs.is_empty() {
+        return Err("Invalid chain".to_owned());
+    }
+
+    let mut pkcs12_builder = Pkcs12::builder();
+    pkcs12_builder.cert(&certs[0].cert);
+
+    if certs.len() > 1 {
+        let mut ca_stack = Stack::<X509>::new().map_err(|_| "Invalid chain".to_owned())?;
+        certs[1..].iter().for_each(|cert| {
+            let _ = ca_stack.push(cert.clone().cert);
+        });
+        pkcs12_builder.ca(ca_stack);
+    }
+
+    if let Some(private_key) = private_key {
+        let key = &PKey::from_rsa(private_key.key).map_err(|_| "Invalid key".to_owned())?;
+        pkcs12_builder.pkey(key);
+    }
+
+    let result = pkcs12_builder.build2(password).map_err(|e| e.to_string())?;
+    let result = result.to_der().map_err(|e| e.to_string())?;
+
+    fs::write(path, result).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn read_p12_file(path: &Path, password: &str) -> Result<(Chain, PrivateKey), String> {
+    let file = fs::read(path).map_err(|err| err.to_string())?;
+    let pkcs12 = Pkcs12::from_der(&file).map_err(|_| "Cannot read file".to_owned())?;
+    let pkcs12 = pkcs12.parse2(password).map_err(|_| "Wrong password".to_owned())?;
+
+    let mut certs = vec![];
+    if let Some(cert) = pkcs12.cert {
+        let cert = Certificate::from_x509(&cert)?;
+        certs.push(cert);
+    }
+
+    if let Some(ca_certs) = pkcs12.ca {
+        ca_certs.iter().for_each(|cert| {
+            if let Ok(pem) = cert.to_pem() {
+                if let Ok(cert) = X509::from_pem(pem.as_slice()) {
+                    let cert = Certificate::from_x509(&cert).unwrap();
+                    certs.push(cert);
+                }
+            }
+        });
+    }
+
+    let pkey = if let Some(key) = pkcs12.pkey {
+        match key.rsa() {
+            Ok(key) => Ok(PrivateKey {
+                key: key.clone(),
+                modulus: hex_encode(key.n().to_vec()).into(),
+            }),
+            Err(err) => Err(err.to_string()),
+        }
+    } else {
+        Err("Cannot read file: Error in private key".to_owned())
+    };
+
+    if certs.is_empty() || pkey.is_err() {
+        Err("Cannot read file".to_owned())
+    } else {
+        Ok((Chain::from(certs), pkey?))
+    }
+}
+
+#[derive(Clone, PartialEq)]
 pub enum StringValue {
     Valid(String),
     Invalid,
@@ -76,7 +148,9 @@ impl From<String> for StringValue {
     }
 }
 
+#[derive(Clone)]
 pub struct PrivateKey {
+    key: Rsa<Private>,
     modulus: StringValue,
 }
 
@@ -87,6 +161,7 @@ impl PrivateKey {
 
         match key.rsa() {
             Ok(key) => Ok(PrivateKey {
+                key: key.clone(),
                 modulus: hex_encode(key.n().to_vec()).into(),
             }),
             Err(err) => Err(err.to_string()),
