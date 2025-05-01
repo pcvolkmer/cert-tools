@@ -53,7 +53,7 @@ fn asn1time(time: &SystemTime) -> Asn1Time {
         .unwrap()
 }
 
-pub fn save_p12_file(path: &Path, certs: &Vec<Certificate>, password: &str, private_key: Option<PrivateKey>) -> Result<(), String> {
+pub fn save_p12_file(path: &Path, password: &str, certs: &Vec<Certificate>, private_key: Option<PrivateKey>) -> Result<(), String> {
     if certs.is_empty() {
         return Err("Invalid chain".to_owned());
     }
@@ -79,6 +79,47 @@ pub fn save_p12_file(path: &Path, certs: &Vec<Certificate>, password: &str, priv
 
     fs::write(path, result).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+pub fn read_p12_file(path: &Path, password: &str) -> Result<(Chain, PrivateKey), String> {
+    let file = fs::read(path).map_err(|err| err.to_string())?;
+    let pkcs12 = Pkcs12::from_der(&file).map_err(|_| "Cannot read file".to_owned())?;
+    let pkcs12 = pkcs12.parse2(password).map_err(|_| "Wrong password".to_owned())?;
+
+    let mut certs = vec![];
+    if let Some(cert) = pkcs12.cert {
+        let cert = Certificate::from_x509(&cert)?;
+        certs.push(cert);
+    }
+
+    if let Some(ca_certs) = pkcs12.ca {
+        ca_certs.iter().for_each(|cert| {
+            if let Ok(pem) = cert.to_pem() {
+                if let Ok(cert) = X509::from_pem(pem.as_slice()) {
+                    let cert = Certificate::from_x509(&cert).unwrap();
+                    certs.push(cert);
+                }
+            }
+        });
+    }
+
+    let pkey = if let Some(key) = pkcs12.pkey {
+        match key.rsa() {
+            Ok(key) => Ok(PrivateKey {
+                key: key.clone(),
+                modulus: hex_encode(key.n().to_vec()).into(),
+            }),
+            Err(err) => Err(err.to_string()),
+        }
+    } else {
+        Err("Cannot read file: Error in private key".to_owned())
+    };
+
+    if certs.is_empty() || pkey.is_err() {
+        Err("Cannot read file".to_owned())
+    } else {
+        Ok((Chain::from(certs), pkey?))
+    }
 }
 
 #[derive(Clone, PartialEq)]
