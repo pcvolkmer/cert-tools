@@ -273,7 +273,7 @@ impl Ui {
                     None => {}
                     Some(ref chain) => match file {
                         Ok(file) => {
-                            match save_p12_file(&file, chain.certs(), &self.password_1, private_key)
+                            match save_p12_file(&file, &self.password_1, chain.certs(), private_key)
                             {
                                 Ok(_) => {}
                                 Err(err) => {
