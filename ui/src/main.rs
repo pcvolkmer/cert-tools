@@ -322,7 +322,7 @@ impl Ui {
         }
     }
 
-    fn view(&self) -> Element<Message> {
+    fn view(&self) -> Element<'_, Message> {
         fn filename_text<'a>(
             placeholder: &'a str,
             file: &'a File,
