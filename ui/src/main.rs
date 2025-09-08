@@ -19,17 +19,14 @@
 
 #![windows_subsystem = "windows"]
 
-use cert_tools::{save_p12_file, Chain, PrivateKey};
+use cert_tools::{read_p12_file, save_p12_file, Chain, PrivateKey};
 use iced::border::Radius;
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
     self, button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
     text_input, Container, Scrollable,
 };
-use iced::{
-    alignment, application, clipboard, color, window, Background, Border, Color, Element, Font,
-    Length, Pixels, Settings, Size, Task,
-};
+use iced::{alignment, application, clipboard, color, window, Background, Border, Color, Element, Font, Length, Padding, Pixels, Settings, Size, Task};
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -66,7 +63,8 @@ impl File {
 enum UiMode {
     CertList,
     Output,
-    Passphrase,
+    ImportPassphrase,
+    ExportPassphrase,
 }
 
 struct Ui {
@@ -119,7 +117,7 @@ impl Ui {
             }
         }
 
-        self.mode = UiMode::CertList;
+        //self.mode = UiMode::CertList;
         match message {
             Message::PickCertFile => Task::perform(pick_file(), Message::SetCertFile),
             Message::PickCaFile => Task::perform(pick_file(), Message::SetCaFile),
@@ -149,6 +147,10 @@ impl Ui {
             Message::SetCertFile(file) => {
                 match file {
                     Ok(file) => {
+                        if file.to_str().unwrap_or_default().to_lowercase().ends_with(".p12") {
+                            self.cert_file = File::Certificates(file, Box::new(Chain::from(vec![])));
+                            return Task::done(Message::AskForImportPassword)
+                        }
                         self.cert_file = match Chain::read(&file) {
                             Ok(chain) => File::Certificates(file, Box::new(chain)),
                             Err(_) => File::Invalid(file),
@@ -192,12 +194,40 @@ impl Ui {
                 self.key_indicator_state = self.key_indicator_state();
                 Task::done(Message::Print)
             }
+            Message::SetPkcs12File(file) => {
+                match file {
+                    Ok(file) => {
+                        let (cert_file, key_file) = match read_p12_file(&file, &self.password_1) {
+                            Ok((chain, key)) => (
+                                File::Certificates(file.clone(), Box::new(chain)),
+                                File::PrivateKey(file, Box::new(key))
+                            ),
+                            Err(_) => (
+                                File::Invalid(file.clone()),
+                                File::Invalid(file)
+                            )
+                        };
+                        self.cert_file = cert_file;
+                        self.key_file = key_file;
+                        self.chain = self.load_chain().ok();
+                        self.fixed_chain = fixed_chain(&self.chain);
+                        self.output = Content::default();
+                        self.mode = UiMode::CertList;
+                        self.password_1 = String::new();
+                        self.password_2 = String::new();
+                    }
+                    _ => self.cert_file = File::None
+                }
+                self.chain_indicator_state = self.chain_indicator_state();
+                self.key_indicator_state = self.key_indicator_state();
+                Task::done(Message::Print)
+            }
             Message::Print => {
+                self.mode = UiMode::CertList;
                 match self.print_output() {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
                         self.status = String::new();
-                        self.mode = UiMode::CertList;
                     }
                     Err(err) => {
                         self.output = Content::default();
@@ -207,6 +237,7 @@ impl Ui {
                 Task::none()
             }
             Message::PrintPem => {
+                self.mode = UiMode::CertList;
                 match self.pem_output() {
                     Ok(output) => {
                         self.output = Content::with_text(output.as_str());
@@ -222,6 +253,7 @@ impl Ui {
             }
             Message::CopyValue(value) => clipboard::write::<Message>(value),
             Message::Cleanup => {
+                self.mode = UiMode::CertList;
                 if let Some(chain) = self.fixed_chain.take() {
                     self.chain = Some(chain);
                     self.mode = UiMode::CertList;
@@ -245,14 +277,19 @@ impl Ui {
                 }
                 Task::none()
             }
-            Message::AskForPassword => {
-                self.mode = UiMode::Passphrase;
+            Message::AskForImportPassword => {
+                self.mode = UiMode::ImportPassphrase;
+                Task::none()
+            }
+            Message::AskForExportPassword => {
+                self.mode = UiMode::ExportPassphrase;
                 Task::none()
             }
             Message::PickExportP12File => {
                 Task::perform(export_p12_file(), Message::ExportToP12File)
             }
             Message::ExportToP12File(file) => {
+                self.mode = UiMode::CertList;
                 let private_key = match &self.key_file {
                     File::PrivateKey(_, key) => Some(key.as_ref().clone()),
                     _ => None,
@@ -279,12 +316,12 @@ impl Ui {
                 Task::none()
             }
             Message::SetPw1(pw) => {
-                self.mode = UiMode::Passphrase;
+                //self.mode = UiMode::ExportPassphrase;
                 self.password_1 = pw.clone();
                 Task::none()
             }
             Message::SetPw2(pw) => {
-                self.mode = UiMode::Passphrase;
+                //self.mode = UiMode::ExportPassphrase;
                 self.password_2 = pw.clone();
                 Task::none()
             }
@@ -405,7 +442,7 @@ impl Ui {
             || self.chain_indicator_state == IndicatorState::Cleaned) && self.key_indicator_state == IndicatorState::Success
         {
             button("Export PKCS #12")
-                .on_press(Message::AskForPassword)
+                .on_press(Message::AskForExportPassword)
                 .style(button::primary)
         } else {
             button("Export PKCS #12").style(button::primary)
@@ -747,28 +784,64 @@ impl Ui {
                 .center_y(80)
         };
 
-        let ask_for_password = {
+        let ask_for_import_password = {
+            let file = match &self.cert_file {
+                File::Certificates(file, _) => Ok(file.clone()),
+                _ => Err(Error::Undefined),
+            };
+            row![
+                column![].width(Length::Fill),
+                container(
+                    column![
+                        text("Bitte Passwort für den Import eingeben"),
+                        text_input("", &self.password_1)
+                            .secure(true)
+                            .on_input(Message::SetPw1)
+                            .on_submit(Message::SetPkcs12File(file.clone())),
+                        row![
+                            button("OK").on_press(Message::SetPkcs12File(file)),
+                            button("Cancel").on_press(Message::Abort)
+                        ].spacing(4),
+                    ]
+                    .spacing(4)
+                    .height(Length::Fill)
+                    .width(320),
+                )
+                .center_x(320),
+                column![].width(Length::Fill),
+            ]
+                .padding(Padding::from(64))
+                .height(Length::Fill)
+                .width(Length::Fill)
+        };
+
+        let ask_for_export_password = {
             let ok_button = if !self.password_1.is_empty() && self.password_1 == self.password_2 {
                 button("OK").on_press(Message::PickExportP12File)
             } else {
                 button("OK")
             };
-            row![container(
-                column![
-                    text("Bitte Passwort für den Export eingeben"),
-                    text_input("", &self.password_1)
-                        .secure(true)
-                        .on_input(Message::SetPw1),
-                    text_input("", &self.password_2)
-                        .secure(true)
-                        .on_input(Message::SetPw2),
-                    row![ok_button, button("Cancel").on_press(Message::Abort)].spacing(4),
-                ]
-                .spacing(4)
-                .height(Length::Fill)
-                .width(320),
-            )
-            .center_x(320)]
+            row![
+                column![].width(Length::Fill),
+                container(
+                    column![
+                        text("Bitte Passwort für den Export eingeben"),
+                        text_input("", &self.password_1)
+                            .secure(true)
+                            .on_input(Message::SetPw1),
+                        text_input("", &self.password_2)
+                            .secure(true)
+                            .on_input(Message::SetPw2),
+                        row![ok_button, button("Cancel").on_press(Message::Abort)].spacing(4),
+                    ]
+                    .spacing(4)
+                    .height(Length::Fill)
+                    .width(320),
+                )
+                .center_x(320),
+                column![].width(Length::Fill),
+            ]
+                .padding(Padding::from(64))
                 .height(Length::Fill)
                 .width(Length::Fill)
         };
@@ -786,7 +859,8 @@ impl Ui {
             match self.mode {
                 UiMode::CertList => column![certs, chain_info],
                 UiMode::Output => column![output],
-                UiMode::Passphrase => column![ask_for_password],
+                UiMode::ImportPassphrase => column![ask_for_import_password],
+                UiMode::ExportPassphrase => column![ask_for_export_password],
             },
             horizontal_rule(1),
             row![
@@ -997,6 +1071,7 @@ enum Message {
     SetCertFile(Result<PathBuf, Error>),
     SetCaFile(Result<PathBuf, Error>),
     SetKeyFile(Result<PathBuf, Error>),
+    SetPkcs12File(Result<PathBuf, Error>),
     Print,
     PrintPem,
     CopyValue(String),
@@ -1005,7 +1080,8 @@ enum Message {
     ExportToFile(Result<PathBuf, Error>),
     PickExportP12File,
     ExportToP12File(Result<PathBuf, Error>),
-    AskForPassword,
+    AskForImportPassword,
+    AskForExportPassword,
     SetPw1(String),
     SetPw2(String),
     Abort,

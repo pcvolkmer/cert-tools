@@ -65,4 +65,5 @@ interface is available in (sub-)package `ui`.
 
 ![](ui-image.jpeg)
 
-The GUI also provides export to a password protected PKCS #12 file, including certificates and private keys.
+The GUI also provides import from and export to a password protected PKCS #12 file,
+including certificates and private keys.
