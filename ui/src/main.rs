@@ -145,78 +145,66 @@ impl Ui {
                 Task::done(Message::Print)
             }
             Message::SetCertFile(file) => {
-                match file {
-                    Ok(file) => {
-                        if file.to_str().unwrap_or_default().to_lowercase().ends_with(".p12") {
-                            self.cert_file = File::Certificates(file, Box::new(Chain::from(vec![])));
-                            return Task::done(Message::AskForImportPassword)
-                        }
-                        self.cert_file = match Chain::read(&file) {
-                            Ok(chain) => File::Certificates(file, Box::new(chain)),
-                            Err(_) => File::Invalid(file),
-                        };
-                        self.chain = self.load_chain().ok();
-                        self.fixed_chain = fixed_chain(&self.chain);
-                        self.output = Content::default();
-                        self.mode = UiMode::CertList;
+                if let Ok(file) = file {
+                    if file.to_str().unwrap_or_default().to_lowercase().ends_with(".p12") {
+                        self.cert_file = File::Certificates(file, Box::new(Chain::from(vec![])));
+                        return Task::done(Message::AskForImportPassword)
                     }
-                    _ => self.cert_file = File::None,
+                    self.cert_file = match Chain::read(&file) {
+                        Ok(chain) => File::Certificates(file, Box::new(chain)),
+                        Err(_) => File::Invalid(file),
+                    };
+                    self.chain = self.load_chain().ok();
+                    self.fixed_chain = fixed_chain(&self.chain);
+                    self.output = Content::default();
+                    self.mode = UiMode::CertList;
                 };
                 self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
             }
             Message::SetCaFile(file) => {
-                match file {
-                    Ok(file) => {
-                        self.ca_file = match Chain::read(&file) {
-                            Ok(chain) => File::Certificates(file, Box::new(chain)),
-                            Err(_) => File::Invalid(file),
-                        };
-                        self.chain = self.load_chain().ok();
-                        self.fixed_chain = fixed_chain(&self.chain);
-                        self.output = Content::default();
-                    }
-                    _ => self.ca_file = File::None,
+                if let Ok(file) = file {
+                    self.ca_file = match Chain::read(&file) {
+                        Ok(chain) => File::Certificates(file, Box::new(chain)),
+                        Err(_) => File::Invalid(file),
+                    };
+                    self.chain = self.load_chain().ok();
+                    self.fixed_chain = fixed_chain(&self.chain);
+                    self.output = Content::default();
                 };
                 self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
             }
             Message::SetKeyFile(file) => {
-                match file {
-                    Ok(file) => {
-                        self.key_file = match PrivateKey::read(&file) {
-                            Ok(key) => File::PrivateKey(file, Box::new(key)),
-                            Err(_) => File::Invalid(file),
-                        };
-                    }
-                    _ => self.key_file = File::None,
+                if let Ok(file) = file {
+                    self.key_file = match PrivateKey::read(&file) {
+                        Ok(key) => File::PrivateKey(file, Box::new(key)),
+                        Err(_) => File::Invalid(file),
+                    };
                 };
                 self.key_indicator_state = self.key_indicator_state();
                 Task::done(Message::Print)
             }
             Message::SetPkcs12File(file) => {
-                match file {
-                    Ok(file) => {
-                        let (cert_file, key_file) = match read_p12_file(&file, &self.password_1) {
-                            Ok((chain, key)) => (
-                                File::Certificates(file.clone(), Box::new(chain)),
-                                File::PrivateKey(file, Box::new(key))
-                            ),
-                            Err(_) => (
-                                File::Invalid(file.clone()),
-                                File::Invalid(file)
-                            )
-                        };
-                        self.cert_file = cert_file;
-                        self.key_file = key_file;
-                        self.chain = self.load_chain().ok();
-                        self.fixed_chain = fixed_chain(&self.chain);
-                        self.output = Content::default();
-                        self.mode = UiMode::CertList;
-                        self.password_1 = String::new();
-                        self.password_2 = String::new();
-                    }
-                    _ => self.cert_file = File::None
+                if let Ok(file) = file {
+                    let (cert_file, key_file) = match read_p12_file(&file, &self.password_1) {
+                        Ok((chain, key)) => (
+                            File::Certificates(file.clone(), Box::new(chain)),
+                            File::PrivateKey(file, Box::new(key))
+                        ),
+                        Err(_) => (
+                            File::Invalid(file.clone()),
+                            File::Invalid(file)
+                        )
+                    };
+                    self.cert_file = cert_file;
+                    self.key_file = key_file;
+                    self.chain = self.load_chain().ok();
+                    self.fixed_chain = fixed_chain(&self.chain);
+                    self.output = Content::default();
+                    self.mode = UiMode::CertList;
+                    self.password_1 = String::new();
+                    self.password_2 = String::new();
                 }
                 self.chain_indicator_state = self.chain_indicator_state();
                 self.key_indicator_state = self.key_indicator_state();
