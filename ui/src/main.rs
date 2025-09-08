@@ -114,10 +114,7 @@ impl Ui {
     fn update(&mut self, message: Message) -> Task<Message> {
         fn fixed_chain(chain: &Option<Chain>) -> Option<Chain> {
             match chain {
-                Some(chain) => match Chain::create_fixed(chain.certs()) {
-                    Ok(chain) => Some(chain),
-                    _ => None,
-                },
+                Some(chain) => Chain::create_fixed(chain.certs()).ok(),
                 _ => None,
             }
         }
@@ -139,10 +136,7 @@ impl Ui {
             }
             Message::ClearCaFile => {
                 self.ca_file = File::None;
-                self.chain = match self.load_chain() {
-                    Ok(chain) => Some(chain),
-                    _ => None,
-                };
+                self.chain = self.load_chain().ok();
                 self.fixed_chain = fixed_chain(&self.chain);
                 self.chain_indicator_state = self.chain_indicator_state();
                 Task::done(Message::Print)
@@ -159,10 +153,7 @@ impl Ui {
                             Ok(chain) => File::Certificates(file, Box::new(chain)),
                             Err(_) => File::Invalid(file),
                         };
-                        self.chain = match self.load_chain() {
-                            Ok(chain) => Some(chain),
-                            _ => None,
-                        };
+                        self.chain = self.load_chain().ok();
                         self.fixed_chain = fixed_chain(&self.chain);
                         self.output = Content::default();
                         self.mode = UiMode::CertList;
@@ -179,10 +170,7 @@ impl Ui {
                             Ok(chain) => File::Certificates(file, Box::new(chain)),
                             Err(_) => File::Invalid(file),
                         };
-                        self.chain = match self.load_chain() {
-                            Ok(chain) => Some(chain),
-                            _ => None,
-                        };
+                        self.chain = self.load_chain().ok();
                         self.fixed_chain = fixed_chain(&self.chain);
                         self.output = Content::default();
                     }
@@ -770,10 +758,10 @@ impl Ui {
                     text("Bitte Passwort für den Export eingeben"),
                     text_input("", &self.password_1)
                         .secure(true)
-                        .on_input(|t| Message::SetPw1(t)),
+                        .on_input(Message::SetPw1),
                     text_input("", &self.password_2)
                         .secure(true)
-                        .on_input(|t| Message::SetPw2(t)),
+                        .on_input(Message::SetPw2),
                     row![ok_button, button("Cancel").on_press(Message::Abort)].spacing(4),
                 ]
                 .spacing(4)
