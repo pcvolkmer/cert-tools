@@ -64,3 +64,5 @@ In addition to the console-based application, a simple [iced](https://github.com
 interface is available in (sub-)package `ui`.
 
 ![](ui-image.jpeg)
+
+The GUI also provides export to a password protected PKCS #12 file, including certificates and private keys.
