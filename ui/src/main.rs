@@ -30,6 +30,7 @@ use iced::{alignment, application, clipboard, color, window, Background, Border,
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
+use iced::window::settings::PlatformSpecific;
 
 fn main() -> iced::Result {
     application(Ui::title, Ui::update, Ui::view)
@@ -38,8 +39,17 @@ fn main() -> iced::Result {
             ..Settings::default()
         })
         .window(window::Settings {
+            #[cfg(target_os = "windows")]
             icon: window::icon::from_file_data(include_bytes!("../../resources/icon.ico"), None)
                 .ok(),
+            #[cfg(target_os = "linux")]
+            icon: window::icon::from_file_data(include_bytes!("../../resources/icon.png"), None)
+                .ok(),
+            #[cfg(target_os = "linux")]
+            platform_specific: PlatformSpecific {
+                application_id: "cert-tools".to_string(),
+                ..PlatformSpecific::default()
+            },
             ..window::Settings::default()
         })
         .resizable(false)
