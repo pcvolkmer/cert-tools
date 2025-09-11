@@ -19,8 +19,8 @@ itertools = "0.14"
 #openssl-sys = { version = "0.9", features = ["vendored"] }
 
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 codegen-units = 1
-lto = "thin"
+lto = true
 strip = true
 panic = "abort"
