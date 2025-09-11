@@ -572,7 +572,13 @@ impl Ui {
                                 .align_y(alignment::Vertical::Center),
                                 row![
                                     text("Subject-Key-Id: ").width(160),
-                                    monospace_text(cert.subject_key_id().to_string()),
+                                    monospace_text(cert.subject_key_id().to_string()).style(move |_| {
+                                        if idx == 0 {
+                                            text::Style::default()
+                                        } else {
+                                            self.get_cert_key_style(idx as u8 - 1)
+                                        }
+                                    }),
                                     text("  "),
                                     if idx == 0 {
                                         container(text(""))
@@ -588,7 +594,13 @@ impl Ui {
                                 ],
                                 row![
                                     text("Authority-Key-Id: ").width(160),
-                                    monospace_text(cert.authority_key_id().to_string()),
+                                    monospace_text(cert.authority_key_id().to_string()).style(move |_| {
+                                        if idx >= chain.certs().len() - 1 {
+                                            text::Style::default()
+                                        } else {
+                                            self.get_cert_key_style(idx as u8)
+                                        }
+                                    }),
                                     text("  "),
                                     if idx >= chain.certs().len() - 1 {
                                         container(text(""))
@@ -1044,6 +1056,16 @@ Authority-Key-Id:    {}
                 radius: Radius::from(4),
             },
             ..container::Style::default()
+        }
+    }
+
+    fn get_cert_key_style(&self, idx: u8) -> text::Style {
+        text::Style {
+            color: if self.wrong_chain_certificate_indexes().contains(&idx) {
+                Some(color!(0xaa0000))
+            } else {
+                text::Style::default().color
+            }
         }
     }
 }
