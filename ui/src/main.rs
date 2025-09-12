@@ -430,9 +430,9 @@ impl Ui {
         let export_button = if !(self.chain_indicator_state == IndicatorState::Success
             || self.chain_indicator_state == IndicatorState::Cleaned)
         {
-            button("Export PEM").style(button::primary)
+            button("Export cert(s) as PEM").style(button::primary)
         } else {
-            button("Export PEM")
+            button("Export cert(s) as PEM")
                 .on_press(Message::PickExportFile)
                 .style(button::primary)
         };
