@@ -53,7 +53,7 @@ fn asn1time(time: &SystemTime) -> Asn1Time {
         .unwrap()
 }
 
-pub fn save_p12_file(path: &Path, password: &str, certs: &Vec<Certificate>, private_key: Option<PrivateKey>) -> Result<(), String> {
+pub fn save_p12_file(path: &Path, password: &str, certs: &[Certificate], private_key: Option<PrivateKey>) -> Result<(), String> {
     if certs.is_empty() {
         return Err("Invalid chain".to_owned());
     }
