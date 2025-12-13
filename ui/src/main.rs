@@ -23,7 +23,7 @@ use cert_tools::{read_p12_file, save_p12_file, Chain, PrivateKey};
 use iced::border::Radius;
 use iced::widget::text_editor::{default, Content, Status};
 use iced::widget::{
-    self, button, column, container, horizontal_rule, horizontal_space, row, text, text_editor,
+    self, button, column, container, rule, space, row, text, text_editor,
     text_input, Container, Scrollable,
 };
 use iced::{alignment, application, clipboard, color, window, Background, Border, Color, Element, Font, Length, Padding, Pixels, Settings, Size, Task};
@@ -33,7 +33,8 @@ use std::time::SystemTime;
 use iced::window::settings::PlatformSpecific;
 
 fn main() -> iced::Result {
-    application(Ui::title, Ui::update, Ui::view)
+    application(Ui::new, Ui::update, Ui::view)
+        .title(Ui::title)
         .settings(Settings {
             default_text_size: Pixels::from(13),
             ..Settings::default()
@@ -54,7 +55,7 @@ fn main() -> iced::Result {
         })
         .resizable(false)
         .window_size(Size::new(1020.0, 800.0))
-        .run_with(Ui::new)
+        .run()
 }
 
 enum File {
@@ -294,7 +295,7 @@ impl Ui {
                 };
                 match &self.chain {
                     None => {}
-                    Some(ref chain) => match file {
+                    Some(chain) => match file {
                         Ok(file) => {
                             match save_p12_file(&file, &self.password_1, chain.certs(), private_key)
                             {
@@ -338,9 +339,9 @@ impl Ui {
             file: &'a File,
         ) -> text_input::TextInput<'a, Message> {
             let text = match file {
-                File::Invalid(ref file)
-                | File::Certificates(ref file, _)
-                | File::PrivateKey(ref file, _) => file.display().to_string(),
+                File::Invalid(file)
+                | File::Certificates(file, _)
+                | File::PrivateKey(file, _) => file.display().to_string(),
                 _ => String::new(),
             };
 
@@ -474,7 +475,7 @@ impl Ui {
                 text(" "),
                 clip_button,
                 cleanup_button,
-                horizontal_space(),
+                space::horizontal(),
             ]
         } else {
             row![
@@ -485,7 +486,7 @@ impl Ui {
                 text(" "),
                 clip_button,
                 cleanup_button,
-                horizontal_space(),
+                space::horizontal(),
             ]
         }
             .spacing(2);
@@ -539,7 +540,7 @@ impl Ui {
                                         container(text(""))
                                     }
                                 ],
-                                horizontal_rule(1),
+                                rule::horizontal(1),
                                 row![text("Issuer: ").width(160), text(cert.issuer().to_string())],
                                 row![
                                     text("Gültigkeit: ").width(160),
@@ -559,7 +560,7 @@ impl Ui {
                                 row![
                                     text("SHA-1-Fingerprint: ").width(160),
                                     monospace_text(cert.fingerprint().sha1.to_string()),
-                                    horizontal_space(),
+                                    space::horizontal(),
                                     button("Copy to Clipboard")
                                         .style(button::secondary)
                                         .padding(1)
@@ -571,7 +572,7 @@ impl Ui {
                                 row![
                                     text("SHA-256-Fingerprint: ").width(160),
                                     monospace_text(cert.fingerprint().sha256.to_string()),
-                                    horizontal_space(),
+                                    space::horizontal(),
                                     button("Copy to Clipboard")
                                         .style(button::secondary)
                                         .padding(1)
@@ -863,19 +864,19 @@ impl Ui {
                 indicator.center_y(96),
             ]
             .spacing(40),
-            horizontal_rule(1),
+            rule::horizontal(1),
             buttons,
-            horizontal_rule(1),
+            rule::horizontal(1),
             match self.mode {
                 UiMode::CertList => column![certs, chain_info],
                 UiMode::Output => column![output],
                 UiMode::ImportPassphrase => column![ask_for_import_password],
                 UiMode::ExportPassphrase => column![ask_for_export_password],
             },
-            horizontal_rule(1),
+            rule::horizontal(1),
             row![
                 text(&self.status),
-                horizontal_space(),
+                space::horizontal(),
                 text(format!("Version {}", env!("CARGO_PKG_VERSION"))).style(|_| text::Style {
                     color: Some(color!(0x888888))
                 }),

@@ -2,7 +2,7 @@
 name = "cert-tools"
 description = "Application to show, check and cleanup content of PEM files"
 version = "0.4.1"
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Paul-Christian Volkmer"]
 
