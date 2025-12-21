@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Cert Tools
+GenericName=Cert Tools
+TryExec=cert-tools-ui
+Exec=cert-tools-ui
+Icon=cert-tools-ui
+Type=Application
+Categories=Utility;
+Terminal=false
+StartupNotify=true

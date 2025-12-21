@@ -42,6 +42,14 @@ linux-package: linux-binary-x86_64
 	tar -czvf target/$(NAME)-$(VERSION)_linux.tar.gz $(NAME)/
 	rm -rf $(NAME) || true
 
+.PHONY: linux-deb
+linux-deb: linux-binary-x86_64
+	cargo deb --no-build --strip --target=x86_64-unknown-linux-gnu --output=./target
+
+.PHONY: linux-rpm
+linux-rpm: linux-binary-x86_64
+	cargo generate-rpm --target=x86_64-unknown-linux-gnu --output=./target
+
 binary-all: win-binary-x86_64 linux-binary-x86_64
 
 .PHONY: win-binary-x86_64

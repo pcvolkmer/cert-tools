@@ -34,13 +34,17 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - run: make linux-package
+      - name: Setup DEB/RPM build
+        run: sudo apt update && sudo apt install rpm && cargo install cargo-deb && cargo install cargo-generate-rpm
+      - run: make linux-package linux-deb linux-rpm
       - name: Release
         if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
             target/*linux.tar.gz
+            target/*.deb
+            target/*.rpm
   windowsbuild:
     name: Create Windows Package
     runs-on: ubuntu-latest
