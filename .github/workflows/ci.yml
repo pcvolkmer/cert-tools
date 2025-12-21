@@ -58,10 +58,11 @@ jobs:
           sudo apt -y update
           sudo apt -y install gcc-mingw-w64-x86-64 gcc-mingw-w64-x86-64-win32 cmake perl nsis zip
           rustup target install x86_64-pc-windows-gnu
-      - run: make win-package
+      - run: make win-package win-installer
       - name: Release
         if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
             target/*win64.zip
+            target/*installer.exe
