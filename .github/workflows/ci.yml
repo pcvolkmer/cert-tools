@@ -69,4 +69,4 @@ jobs:
         with:
           files: |
             target/*win64.zip
-            target/*installer.exe
+            target/*installer*.exe
