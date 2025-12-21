@@ -42,33 +42,25 @@ linux-package: linux-binary-x86_64
 	tar -czvf target/$(NAME)-$(VERSION)_linux.tar.gz $(NAME)/
 	rm -rf $(NAME) || true
 
+.PHONY: linux-deb
+linux-deb: linux-binary-x86_64
+	cargo deb --no-build --strip --target=x86_64-unknown-linux-gnu --output=./target
+
+.PHONY: linux-rpm
+linux-rpm: linux-binary-x86_64
+	cargo generate-rpm --target=x86_64-unknown-linux-gnu --output=./target
+
 binary-all: win-binary-x86_64 linux-binary-x86_64
 
 .PHONY: win-binary-x86_64
 win-binary-x86_64:
-	# Temp cargo file
-	cp Cargo.toml  Cargo.toml.0
-	cp ui/Cargo.toml  ui/Cargo.toml.0
-	sed -i 's/^version.*/version = $(VERSION)/' Cargo.toml
-	sed -i 's/^version = .*/version = $(VERSION)/' ui/Cargo.toml
 	cargo build --release --target=x86_64-pc-windows-gnu
 	cargo build --release --package cert-tools-ui --target=x86_64-pc-windows-gnu
-	# Restore temp
-	mv Cargo.toml.0 Cargo.toml
-	mv ui/Cargo.toml.0 ui/Cargo.toml
 
 .PHONY: linux-binary-x86_64
 linux-binary-x86_64:
-	# Temp cargo file
-	cp Cargo.toml  Cargo.toml.0
-	cp ui/Cargo.toml  ui/Cargo.toml.0
-	sed -i 's/^version.*/version = $(VERSION)/' Cargo.toml
-	sed -i 's/^version = .*/version = $(VERSION)/' ui/Cargo.toml
 	cargo build --release --target=x86_64-unknown-linux-gnu
 	cargo build --release --package cert-tools-ui --target=x86_64-unknown-linux-gnu
-	# Restore temp
-	mv Cargo.toml.0 Cargo.toml
-	mv ui/Cargo.toml.0 ui/Cargo.toml
 
 .PHONY: install
 install:

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ 'master' ]
+  push:
+    branches: [ 'master' ]
+  release:
+    types: [ 'created' ]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: cargo test --release --verbose
+  linuxbuild:
+    name: Create Linux Package
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup DEB/RPM build
+        run: sudo apt update && sudo apt install rpm && cargo install cargo-deb && cargo install cargo-generate-rpm
+      - run: make linux-package linux-deb linux-rpm
+      - name: Release
+        if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/*linux.tar.gz
+            target/*.deb
+            target/*.rpm
+  windowsbuild:
+    name: Create Windows Package
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross compile dependencies
+        run: |
+          sudo apt -y update
+          sudo apt -y install gcc-mingw-w64-x86-64 gcc-mingw-w64-x86-64-win32 cmake perl nsis zip
+          rustup target install x86_64-pc-windows-gnu
+      - run: make win-package win-installer
+      - name: Release
+        if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/*win64.zip
+            target/*installer.exe

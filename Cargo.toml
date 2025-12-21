@@ -24,3 +24,21 @@ codegen-units = 1
 lto = true
 strip = true
 panic = "abort"
+
+[package.metadata.deb]
+copyright = "Copyright (C) 2025 the original author or authors"
+extended-description = "Application to show, check and cleanup content of PEM files"
+assets = [
+    ["target/release/cert-tools", "usr/bin/", "755"],
+    ["target/release/cert-tools-ui", "usr/bin/", "755"],
+    ["resources/cert-tools.desktop", "usr/share/applications", "644"],
+    ["resources/cert-tools-ui.svg", "usr/share/icons/hicolor/scalable/apps/", "644"]
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/x86_64-unknown-linux-gnu/release/cert-tools", dest = "/usr/bin/", mode = "755" },
+    { source = "target/x86_64-unknown-linux-gnu/release/cert-tools-ui", dest = "/usr/bin/", mode = "755" },
+    { source = "resources/cert-tools.desktop", dest = "/usr/share/applications/", mode = "644" },
+    { source = "resources/cert-tools-ui.svg", dest = "/usr/share/icons/hicolor/scalable/apps/", mode = "644" }
+]
