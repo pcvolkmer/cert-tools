@@ -53,9 +53,10 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - name: Install Perl modules
+      - name: Install perl module
         run: |
-          cpan -T Locale::Maketext::Simple
+          cpanm install ExtUtils::Manifest
+          cpanm install Locale::Maketext::Simple
       - run: make win-package
       - name: Release
         if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
