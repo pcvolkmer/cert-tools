@@ -79,7 +79,13 @@ fn main() -> Result<(), ()> {
                                             .green()
                                     );
                                 } else {
-                                    println!("{}", style("! Private Key does not match the first Cert Public Key").red());
+                                    println!(
+                                        "{}",
+                                        style(
+                                            "! Private Key does not match the first Cert Public Key"
+                                        )
+                                            .red()
+                                    );
                                 }
                             }
                         }
@@ -99,7 +105,7 @@ fn main() -> Result<(), ()> {
                 eprintln!("{}", style("success").green());
             }
             Err(err) => eprintln!("{}", style(err).red()),
-        }
+        },
     }
     Ok(())
 }
@@ -167,7 +173,9 @@ fn merge(cert: &str, ca: Option<String>) -> Result<String, String> {
         }
         let mut pem = vec![];
         for cert in chain.certs() {
-            if let Ok(plain) = cert.to_pem() { pem.push(plain) } else {
+            if let Ok(plain) = cert.to_pem() {
+                pem.push(plain)
+            } else {
                 return Err("Cannot merge files to valid chain - Cert error!".to_string());
             }
         }

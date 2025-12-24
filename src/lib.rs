@@ -21,8 +21,8 @@ use itertools::Itertools;
 use openssl::asn1::Asn1Time;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
-use openssl::pkcs12::Pkcs12;
 use openssl::pkcs7::Pkcs7;
+use openssl::pkcs12::Pkcs12;
 use openssl::pkey::{PKey, PKeyRef, Private, Public};
 use openssl::rsa::Rsa;
 use openssl::stack::Stack;
@@ -53,7 +53,12 @@ fn asn1time(time: &SystemTime) -> Asn1Time {
         .unwrap()
 }
 
-pub fn save_p12_file(path: &Path, password: &str, certs: &[Certificate], private_key: Option<PrivateKey>) -> Result<(), String> {
+pub fn save_p12_file(
+    path: &Path,
+    password: &str,
+    certs: &[Certificate],
+    private_key: Option<PrivateKey>,
+) -> Result<(), String> {
     if certs.is_empty() {
         return Err("Invalid chain".to_owned());
     }
@@ -84,7 +89,9 @@ pub fn save_p12_file(path: &Path, password: &str, certs: &[Certificate], private
 pub fn read_p12_file(path: &Path, password: &str) -> Result<(Chain, PrivateKey), String> {
     let file = fs::read(path).map_err(|err| err.to_string())?;
     let pkcs12 = Pkcs12::from_der(&file).map_err(|_| "Cannot read file".to_owned())?;
-    let pkcs12 = pkcs12.parse2(password).map_err(|_| "Wrong password".to_owned())?;
+    let pkcs12 = pkcs12
+        .parse2(password)
+        .map_err(|_| "Wrong password".to_owned())?;
 
     let mut certs = vec![];
     if let Some(cert) = pkcs12.cert {

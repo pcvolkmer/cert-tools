@@ -19,18 +19,21 @@
 
 #![windows_subsystem = "windows"]
 
-use cert_tools::{read_p12_file, save_p12_file, Chain, PrivateKey};
+use cert_tools::{Chain, PrivateKey, read_p12_file, save_p12_file};
 use iced::border::Radius;
-use iced::widget::text_editor::{default, Content, Status};
+use iced::widget::text_editor::{Content, Status, default};
 use iced::widget::{
-    self, button, column, container, rule, space, row, text, text_editor,
-    text_input, Container, Scrollable,
+    self, Container, Scrollable, button, column, container, row, rule, space, text, text_editor,
+    text_input,
 };
-use iced::{alignment, application, clipboard, color, window, Background, Border, Color, Element, Font, Length, Padding, Pixels, Settings, Size, Task};
+use iced::window::settings::PlatformSpecific;
+use iced::{
+    Background, Border, Color, Element, Font, Length, Padding, Pixels, Settings, Size, Task,
+    alignment, application, clipboard, color, window,
+};
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use iced::window::settings::PlatformSpecific;
 
 fn main() -> iced::Result {
     application(Ui::new, Ui::update, Ui::view)
@@ -157,9 +160,14 @@ impl Ui {
             }
             Message::SetCertFile(file) => {
                 if let Ok(file) = file {
-                    if file.to_str().unwrap_or_default().to_lowercase().ends_with(".p12") {
+                    if file
+                        .to_str()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .ends_with(".p12")
+                    {
                         self.cert_file = File::Certificates(file, Box::new(Chain::from(vec![])));
-                        return Task::done(Message::AskForImportPassword)
+                        return Task::done(Message::AskForImportPassword);
                     }
                     self.cert_file = match Chain::read(&file) {
                         Ok(chain) => File::Certificates(file, Box::new(chain)),
@@ -201,12 +209,9 @@ impl Ui {
                     let (cert_file, key_file) = match read_p12_file(&file, &self.password_1) {
                         Ok((chain, key)) => (
                             File::Certificates(file.clone(), Box::new(chain)),
-                            File::PrivateKey(file, Box::new(key))
+                            File::PrivateKey(file, Box::new(key)),
                         ),
-                        Err(_) => (
-                            File::Invalid(file.clone()),
-                            File::Invalid(file)
-                        )
+                        Err(_) => (File::Invalid(file.clone()), File::Invalid(file)),
                     };
                     self.cert_file = cert_file;
                     self.key_file = key_file;
@@ -339,9 +344,9 @@ impl Ui {
             file: &'a File,
         ) -> text_input::TextInput<'a, Message> {
             let text = match file {
-                File::Invalid(file)
-                | File::Certificates(file, _)
-                | File::PrivateKey(file, _) => file.display().to_string(),
+                File::Invalid(file) | File::Certificates(file, _) | File::PrivateKey(file, _) => {
+                    file.display().to_string()
+                }
                 _ => String::new(),
             };
 
@@ -438,7 +443,8 @@ impl Ui {
                 .style(button::primary)
         };
         let export_p12_button = if (self.chain_indicator_state == IndicatorState::Success
-            || self.chain_indicator_state == IndicatorState::Cleaned) && self.key_indicator_state == IndicatorState::Success
+            || self.chain_indicator_state == IndicatorState::Cleaned)
+            && self.key_indicator_state == IndicatorState::Success
         {
             button("Export PKCS #12")
                 .on_press(Message::AskForExportPassword)
@@ -583,13 +589,15 @@ impl Ui {
                                 .align_y(alignment::Vertical::Center),
                                 row![
                                     text("Subject-Key-Id: ").width(160),
-                                    monospace_text(cert.subject_key_id().to_string()).style(move |_| {
-                                        if idx == 0 {
-                                            text::Style::default()
-                                        } else {
-                                            self.get_cert_key_style(idx as u8 - 1)
+                                    monospace_text(cert.subject_key_id().to_string()).style(
+                                        move |_| {
+                                            if idx == 0 {
+                                                text::Style::default()
+                                            } else {
+                                                self.get_cert_key_style(idx as u8 - 1)
+                                            }
                                         }
-                                    }),
+                                    ),
                                     text("  "),
                                     if idx == 0 {
                                         container(text(""))
@@ -605,13 +613,15 @@ impl Ui {
                                 ],
                                 row![
                                     text("Authority-Key-Id: ").width(160),
-                                    monospace_text(cert.authority_key_id().to_string()).style(move |_| {
-                                        if idx >= chain.certs().len() - 1 {
-                                            text::Style::default()
-                                        } else {
-                                            self.get_cert_key_style(idx as u8)
+                                    monospace_text(cert.authority_key_id().to_string()).style(
+                                        move |_| {
+                                            if idx >= chain.certs().len() - 1 {
+                                                text::Style::default()
+                                            } else {
+                                                self.get_cert_key_style(idx as u8)
+                                            }
                                         }
-                                    }),
+                                    ),
                                     text("  "),
                                     if idx >= chain.certs().len() - 1 {
                                         container(text(""))
@@ -679,25 +689,27 @@ impl Ui {
 
             result = result.push(if let Some(chain) = &self.chain {
                 if chain.is_valid() {
-                    column![Container::new(text("Chain is valid"))
-                        .style(|_| container::Style {
-                            background: Some(Background::Color(color!(0x00aa00))),
-                            text_color: Some(Color::WHITE),
-                            ..container::Style::default()
-                        })
-                        .padding(2)
-                        .width(Length::Fill)]
+                    column![
+                        Container::new(text("Chain is valid"))
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(color!(0x00aa00))),
+                                text_color: Some(Color::WHITE),
+                                ..container::Style::default()
+                            })
+                            .padding(2)
+                            .width(Length::Fill)
+                    ]
                 } else if !chain.certs().is_empty() {
-                    column![Container::new(text(
-                        "Chain or some of its parts is not valid (anymore)"
-                    ))
-                    .style(|_| container::Style {
-                        background: Some(Background::Color(color!(0xaa0000))),
-                        text_color: Some(Color::WHITE),
-                        ..container::Style::default()
-                    })
-                    .padding(2)
-                    .width(Length::Fill)]
+                    column![
+                        Container::new(text("Chain or some of its parts is not valid (anymore)"))
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(color!(0xaa0000))),
+                                text_color: Some(Color::WHITE),
+                                ..container::Style::default()
+                            })
+                            .padding(2)
+                            .width(Length::Fill)
+                    ]
                 } else {
                     column![]
                 }
@@ -709,27 +721,29 @@ impl Ui {
                 if let Some(chain) = &self.chain {
                     if let Some(first) = chain.certs().first() {
                         if first.public_key_matches(private_key) {
-                            column![Container::new(text(
-                                "Private Key matches first Cert Public Key"
-                            ))
-                            .style(|_| container::Style {
-                                background: Some(Background::Color(color!(0x00aa00))),
-                                text_color: Some(Color::WHITE),
-                                ..container::Style::default()
-                            })
-                            .padding(2)
-                            .width(Length::Fill)]
+                            column![
+                                Container::new(text("Private Key matches first Cert Public Key"))
+                                    .style(|_| container::Style {
+                                        background: Some(Background::Color(color!(0x00aa00))),
+                                        text_color: Some(Color::WHITE),
+                                        ..container::Style::default()
+                                    })
+                                    .padding(2)
+                                    .width(Length::Fill)
+                            ]
                         } else {
-                            column![Container::new(text(
-                                "Private Key does not match the first Cert Public Key"
-                            ))
-                            .style(|_| container::Style {
-                                background: Some(Background::Color(color!(0xaa0000))),
-                                text_color: Some(Color::WHITE),
-                                ..container::Style::default()
-                            })
-                            .padding(2)
-                            .width(Length::Fill)]
+                            column![
+                                Container::new(text(
+                                    "Private Key does not match the first Cert Public Key"
+                                ))
+                                .style(|_| container::Style {
+                                    background: Some(Background::Color(color!(0xaa0000))),
+                                    text_color: Some(Color::WHITE),
+                                    ..container::Style::default()
+                                })
+                                .padding(2)
+                                .width(Length::Fill)
+                            ]
                         }
                     } else {
                         column![]
@@ -812,7 +826,8 @@ impl Ui {
                         row![
                             button("OK").on_press(Message::SetPkcs12File(file)),
                             button("Cancel").on_press(Message::Abort)
-                        ].spacing(4),
+                        ]
+                        .spacing(4),
                     ]
                     .spacing(4)
                     .height(Length::Fill)
@@ -1076,7 +1091,7 @@ Authority-Key-Id:    {}
                 Some(color!(0xaa0000))
             } else {
                 text::Style::default().color
-            }
+            },
         }
     }
 }
