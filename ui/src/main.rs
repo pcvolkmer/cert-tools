@@ -26,7 +26,6 @@ use iced::widget::{
     self, Container, Scrollable, button, column, container, row, rule, space, text, text_editor,
     text_input,
 };
-use iced::window::settings::PlatformSpecific;
 use iced::{
     Background, Border, Color, Element, Font, Length, Padding, Pixels, Settings, Size, Task,
     alignment, application, clipboard, color, window,
@@ -34,6 +33,9 @@ use iced::{
 use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
+
+#[cfg(target_os = "linux")]
+use iced::window::settings::PlatformSpecific;
 
 fn main() -> iced::Result {
     application(Ui::new, Ui::update, Ui::view)

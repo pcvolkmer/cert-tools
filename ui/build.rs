@@ -19,8 +19,9 @@
 
 fn main() {
     if std::env::var_os("CARGO_CFG_WINDOWS").is_some() {
-        let mut res = winresource::WindowsResource::new();
-        res.set_icon("../resources/icon.ico");
-        res.compile().unwrap();
+        winresource::WindowsResource::new()
+            .set_icon("../resources/icon.ico")
+            .compile()
+            .unwrap();
     }
 }
