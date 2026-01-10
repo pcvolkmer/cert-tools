@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 cert-tools = { path = ".." }
 iced = { version = "0.14", features = ["wayland", "x11", "wgpu", "tiny-skia", "tokio", "web-colors", "image", "advanced"], default-features = false }
-rfd = "0.16"
+rfd = "0.17"
 itertools = "0.14"
 
 [build-dependencies]
