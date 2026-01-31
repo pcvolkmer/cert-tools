@@ -174,7 +174,7 @@ fn merge(cert: &str, ca: Option<String>) -> Result<String, String> {
         let mut pem = vec![];
         for cert in chain.certs() {
             if let Ok(plain) = cert.to_pem() {
-                pem.push(plain)
+                pem.push(plain);
             } else {
                 return Err("Cannot merge files to valid chain - Cert error!".to_string());
             }

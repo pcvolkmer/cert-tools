@@ -101,11 +101,11 @@ pub fn read_p12_file(path: &Path, password: &str) -> Result<(Chain, PrivateKey),
 
     if let Some(ca_certs) = pkcs12.ca {
         ca_certs.iter().for_each(|cert| {
-            if let Ok(pem) = cert.to_pem() {
-                if let Ok(cert) = X509::from_pem(pem.as_slice()) {
-                    let cert = Certificate::from_x509(&cert).unwrap();
-                    certs.push(cert);
-                }
+            if let Ok(pem) = cert.to_pem()
+                && let Ok(cert) = X509::from_pem(pem.as_slice())
+                && let Ok(cert) = Certificate::from_x509(&cert)
+            {
+                certs.push(cert);
             }
         });
     }
@@ -428,10 +428,10 @@ impl Chain {
             if !cert.within_timerange(&SystemTime::now()) {
                 time_issue = true;
             }
-            if let Some(x) = &x {
-                if !cert.verify(x) {
-                    return false;
-                }
+            if let Some(x) = &x
+                && !cert.verify(x)
+            {
+                return false;
             }
             x = cert.public_key().ok();
         }

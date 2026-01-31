@@ -959,8 +959,8 @@ Authority-Key-Id:    {}
                 output.push("! Chain or some of its parts is not valid (anymore)".to_string());
             }
 
-            if let File::PrivateKey(_, private_key) = &self.key_file {
-                if let Some(cert) = chain.certs().first() {
+            if let File::PrivateKey(_, private_key) = &self.key_file
+                && let Some(cert) = chain.certs().first() {
                     if cert.public_key_matches(private_key) {
                         output.push("✓ Private Key matches first Cert Public Key".to_string());
                     } else {
@@ -969,7 +969,6 @@ Authority-Key-Id:    {}
                         );
                     }
                 }
-            }
         }
 
         Ok(output.join("\n"))
@@ -1021,17 +1020,15 @@ Authority-Key-Id:    {}
     }
 
     fn key_indicator_state(&self) -> IndicatorState {
-        if let Some(chain) = &self.chain {
-            if let File::PrivateKey(_, private_key) = &self.key_file {
-                if let Some(cert) = chain.certs().first() {
+        if let Some(chain) = &self.chain
+            && let File::PrivateKey(_, private_key) = &self.key_file
+            && let Some(cert) = chain.certs().first() {
                     return if cert.public_key_matches(private_key) {
                         IndicatorState::Success
                     } else {
                         IndicatorState::Error
                     };
                 }
-            }
-        }
         IndicatorState::Unknown
     }
 
