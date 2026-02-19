@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/pcvolkmer/cert-tools/compare/v0.4.2...v0.4.3) (2026-02-19)
+
+
+### deps
+
+* update dependencies ([7066517](https://github.com/pcvolkmer/cert-tools/commit/7066517aa3a136c48b031ad61a6f037bd455acaf))
+
 ## [0.4.2](https://github.com/pcvolkmer/cert-tools/compare/v0.4.1...v0.4.2) (2025-12-21)
 
 
