@@ -19,7 +19,7 @@
 
 #![windows_subsystem = "windows"]
 
-use cert_tools::{Chain, PrivateKey, read_p12_file, save_p12_file};
+use cert_tools::{Chain, PrivateKey, read_p12_file, save_p12_file, save_pem_key};
 use iced::border::Radius;
 use iced::widget::text_editor::{Content, Status, default};
 use iced::widget::{
@@ -268,6 +268,7 @@ impl Ui {
                 Task::none()
             }
             Message::PickExportFile => Task::perform(export_file(), Message::ExportToFile),
+            Message::PickKeyExportFile => Task::perform(export_key_file(), Message::ExportToKeyFile),
             Message::ExportToFile(file) => {
                 match file {
                     Ok(file) => match self.pem_output() {
@@ -276,6 +277,23 @@ impl Ui {
                             Err(err) => self.status = format!("{:?}", err),
                         },
                         Err(err) => self.status = err,
+                    },
+                    Err(err) => {
+                        self.status = format!("{:?}", err);
+                    }
+                }
+                Task::none()
+            }
+            Message::ExportToKeyFile(file) => {
+                match file {
+                    Ok(file) => {
+                        match &self.key_file {
+                            File::PrivateKey(_, key) => match save_pem_key(&file, key.as_ref().clone()) {
+                                Ok(_) => (),
+                                Err(err) => self.status = format!("{:?}", err),
+                            },
+                            _ => self.status = "Cannot export key".to_string(),
+                        };
                     },
                     Err(err) => {
                         self.status = format!("{:?}", err);
@@ -444,6 +462,18 @@ impl Ui {
                 .on_press(Message::PickExportFile)
                 .style(button::primary)
         };
+        let export_key_button = if (self.chain_indicator_state == IndicatorState::Success
+            || self.chain_indicator_state == IndicatorState::Cleaned)
+            && self.key_indicator_state == IndicatorState::Success
+        {
+            button("Export key as PEM")
+                .on_press(Message::PickKeyExportFile)
+                .style(button::primary)
+        } else {
+            button("Export key as PEM")
+                .style(button::primary)
+        };
+
         let export_p12_button = if (self.chain_indicator_state == IndicatorState::Success
             || self.chain_indicator_state == IndicatorState::Cleaned)
             && self.key_indicator_state == IndicatorState::Success
@@ -479,6 +509,7 @@ impl Ui {
                     .on_press(Message::PrintPem)
                     .style(button::primary),
                 export_button,
+                export_key_button,
                 export_p12_button,
                 text(" "),
                 clip_button,
@@ -490,6 +521,7 @@ impl Ui {
                 button("Print information").style(button::primary),
                 button("Print PEM").style(button::primary),
                 export_button,
+                export_key_button,
                 export_p12_button,
                 text(" "),
                 clip_button,
@@ -1112,7 +1144,9 @@ enum Message {
     CopyValue(String),
     Cleanup,
     PickExportFile,
+    PickKeyExportFile,
     ExportToFile(Result<PathBuf, Error>),
+    ExportToKeyFile(Result<PathBuf, Error>),
     PickExportP12File,
     ExportToP12File(Result<PathBuf, Error>),
     AskForImportPassword,
@@ -1147,8 +1181,19 @@ async fn pick_file() -> Result<PathBuf, Error> {
 
 async fn export_file() -> Result<PathBuf, Error> {
     let path = rfd::AsyncFileDialog::new()
-        .set_title("Export file...")
+        .set_title("Export cert(s) file...")
         .add_filter("PEM-File", &["crt", "pem"])
+        .save_file()
+        .await
+        .ok_or(Error::Undefined)?;
+
+    Ok(path.into())
+}
+
+async fn export_key_file() -> Result<PathBuf, Error> {
+    let path = rfd::AsyncFileDialog::new()
+        .set_title("Export key file...")
+        .add_filter("PEM-File", &["key", "pem"])
         .save_file()
         .await
         .ok_or(Error::Undefined)?;

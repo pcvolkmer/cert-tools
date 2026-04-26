@@ -86,6 +86,15 @@ pub fn save_p12_file(
     Ok(())
 }
 
+pub fn save_pem_key(
+    path: &Path,
+    private_key: PrivateKey,
+) -> Result<(), String> {
+    let result = private_key.key.private_key_to_pem().map_err(|e| e.to_string())?;
+    fs::write(path, result).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub fn read_p12_file(path: &Path, password: &str) -> Result<(Chain, PrivateKey), String> {
     let file = fs::read(path).map_err(|err| err.to_string())?;
     let pkcs12 = Pkcs12::from_der(&file).map_err(|_| "Cannot read file".to_owned())?;
