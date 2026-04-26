@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/pcvolkmer/cert-tools/compare/v0.4.3...v0.5.0) (2026-04-26)
+
+
+### Features
+
+* export key pem file without password ([#12](https://github.com/pcvolkmer/cert-tools/issues/12)) ([d664ba9](https://github.com/pcvolkmer/cert-tools/commit/d664ba9b2a8cb3dff2929f1973ed2875659a7ce2))
+
+
+### Miscellaneous Chores
+
+* bump version ([75ea550](https://github.com/pcvolkmer/cert-tools/commit/75ea550af77ec642f3dd7b6c515586d28dc2a16c))
+
 ## [0.4.3](https://github.com/pcvolkmer/cert-tools/compare/v0.4.2...v0.4.3) (2026-02-19)
 
 
